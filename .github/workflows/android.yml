@@ -24,27 +24,32 @@ jobs:
     - name: Get Release Info
       id: release_info
       run: |
+        # Extract version name safely
         VERSION_NAME=$(grep "versionName" app/build.gradle | awk -F '"' '{print $2}')
+        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
+        
         # Get the previous tag, if it exists
         LAST_TAG=$(git tag --sort=-v:refname | head -n 1)
         
-        if [ -z "$LAST_TAG" ]; then
-          echo "No previous tag found, fetching all commits."
-          COMMITS=$(git log --pretty=format:"* %s")
-        else
-          echo "Previous tag: $LAST_TAG"
-          COMMITS=$(git log $LAST_TAG..HEAD --pretty=format:"* %s")
-        fi
-        
-        # If COMMITS is empty (e.g. HEAD is at LAST_TAG), just get the last commit
-        if [ -z "$COMMITS" ]; then
-          COMMITS=$(git log -1 --pretty=format:"* %s")
-        fi
-        
-        echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_OUTPUT
+        # Open the multiline block for CHANGELOG
         echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
         echo "### Changes in this release" >> $GITHUB_OUTPUT
-        echo "$COMMITS" >> $GITHUB_OUTPUT
+        
+        if [ -z "$LAST_TAG" ]; then
+          echo "No previous tag found, fetching all commits."
+          git log --pretty=format:"* %s" >> $GITHUB_OUTPUT
+        else
+          echo "Previous tag: $LAST_TAG"
+          # Check if there are new commits since the last tag
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse $LAST_TAG)" ]; then
+            git log -1 --pretty=format:"* %s" >> $GITHUB_OUTPUT
+          else
+            git log $LAST_TAG..HEAD --pretty=format:"* %s" >> $GITHUB_OUTPUT
+          fi
+        fi
+        
+        # Close the multiline block
+        echo "" >> $GITHUB_OUTPUT
         echo "EOF" >> $GITHUB_OUTPUT
 
     - name: Create google-services.json
@@ -88,4 +93,3 @@ jobs:
         generate_release_notes: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        
