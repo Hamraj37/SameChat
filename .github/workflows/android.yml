@@ -1,4 +1,4 @@
-name: Android CI
+Name: Android CI
 
 on:
   push:
@@ -29,6 +29,16 @@ jobs:
         echo "RELEASE_KEY_PASSWORD=${{ secrets.RELEASE_KEY_PASSWORD }}" >> local.properties
         echo "RELEASE_KEYSTORE_BASE64=${{ secrets.RELEASE_KEYSTORE_BASE64 }}" >> local.properties
 
+    # Added step: Write the raw JSON secret into the app directory
+    - name: Create google-services.json
+      env:
+        GOOGLE_SERVICES_CONTENT: ${{ secrets.GOOGLE_SERVICES_JSON }}
+      run: |
+        cat << 'EOF' > app/google-services.json
+        $GOOGLE_SERVICES_CONTENT
+        EOF
+
+    # Now this will succeed because the file is exactly where Gradle expects it
     - name: Build with Gradle
       run: ./gradlew assembleRelease
 
