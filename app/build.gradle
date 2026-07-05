@@ -23,21 +23,21 @@ android {
         minSdk 30
         targetSdk 36
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.1"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
         release {
-            def alias = localProperties.getProperty('RELEASE_KEY_ALIAS') ?: System.getenv('RELEASE_KEY_ALIAS')
-            def keyPassword = localProperties.getProperty('RELEASE_KEY_PASSWORD') ?: System.getenv('RELEASE_KEY_PASSWORD')
+            def releaseAlias = localProperties.getProperty('RELEASE_KEY_ALIAS') ?: System.getenv('RELEASE_KEY_ALIAS')
+            def releasePassword = localProperties.getProperty('RELEASE_KEY_PASSWORD') ?: System.getenv('RELEASE_KEY_PASSWORD')
             def keystoreBase64 = localProperties.getProperty('RELEASE_KEYSTORE_BASE64') ?: System.getenv('RELEASE_KEYSTORE_BASE64')
 
-            if (alias && keyPassword) {
-                keyAlias alias
-                this.keyPassword keyPassword
-                this.storePassword keyPassword // Using key password as store password
+            if (releaseAlias && releasePassword) {
+                keyAlias releaseAlias
+                keyPassword releasePassword
+                storePassword releasePassword
 
                 // Use existing jks file or decode from Base64 if missing (for CI/CD)
                 def keystoreFile = rootProject.file('release-key.jks')
