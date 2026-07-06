@@ -28,6 +28,22 @@ public class ProfileInfoActivity extends BaseActivity {
     private String targetUid;
     private boolean isOwnProfile;
 
+    private final androidx.activity.result.ActivityResultLauncher<String> pickImageLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+                    uri -> {
+                        if (uri != null) {
+                            uploadProfileImage(uri, false);
+                        }
+                    });
+
+    private final androidx.activity.result.ActivityResultLauncher<String> pickCoverLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+                    uri -> {
+                        if (uri != null) {
+                            uploadProfileImage(uri, true);
+                        }
+                    });
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -45,9 +61,13 @@ public class ProfileInfoActivity extends BaseActivity {
         isOwnProfile = targetUid != null && targetUid.equals(myUid);
 
         if (!isOwnProfile) {
-            binding.editNameButton.setVisibility(android.view.View.GONE);
-            binding.editHandleButton.setVisibility(android.view.View.GONE);
+            binding.settingsButton.setVisibility(android.view.View.GONE);
+            binding.editProfileImageFab.setVisibility(android.view.View.GONE);
+            binding.editCoverImageFab.setVisibility(android.view.View.GONE);
             checkFriendStatus();
+        } else {
+            binding.editProfileImageFab.setVisibility(android.view.View.VISIBLE);
+            binding.editCoverImageFab.setVisibility(android.view.View.VISIBLE);
         }
 
         loadUserProfile();
@@ -79,10 +99,102 @@ public class ProfileInfoActivity extends BaseActivity {
 
     private void setupClickListeners() {
         if (isOwnProfile) {
-            binding.editNameButton.setOnClickListener(v -> showEditNameDialog());
-            binding.editHandleButton.setOnClickListener(v -> showEditHandleDialog());
+            binding.settingsButton.setOnClickListener(v -> showProfileSettingsDialog());
+            binding.profileImage.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+            binding.editProfileImageFab.setOnClickListener(v -> pickImageLauncher.launch("image/*"));
+            binding.editCoverImageFab.setOnClickListener(v -> pickCoverLauncher.launch("image/*"));
         } else {
             binding.unfriendButton.setOnClickListener(v -> showUnfriendConfirmDialog());
+        }
+    }
+
+    private void showProfileSettingsDialog() {
+        String[] options = {"Change Name", "Change Username", "Change Profile Photo"};
+        new AlertDialog.Builder(this)
+                .setTitle("Profile Settings")
+                .setItems(options, (dialog, which) -> {
+                    switch (which) {
+                        case 0:
+                            showEditNameDialog();
+                            break;
+                        case 1:
+                            showEditHandleDialog();
+                            break;
+                        case 2:
+                            pickImageLauncher.launch("image/*");
+                            break;
+                    }
+                })
+                .show();
+    }
+
+    private void uploadProfileImage(android.net.Uri uri, boolean isCover) {
+        if (binding != null) {
+            binding.uploadProgress.setVisibility(android.view.View.VISIBLE);
+            binding.uploadProgress.setProgress(0);
+        }
+        Toast.makeText(this, isCover ? "Uploading cover photo..." : "Uploading profile photo...", Toast.LENGTH_SHORT).show();
+        try {
+            java.io.InputStream inputStream = getContentResolver().openInputStream(uri);
+            if (inputStream == null) return;
+            
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = inputStream.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+            byte[] bytes = baos.toByteArray();
+            inputStream.close();
+
+            String prefix = isCover ? "covers" : "avatars";
+            String fileName = targetUid + "_" + System.currentTimeMillis() + ".jpg";
+            com.samechat37.utils.GitHubStorage.uploadBytes(bytes, prefix, fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
+                @Override
+                public void onSuccess(String downloadUrl) {
+                    runOnUiThread(() -> {
+                        if (binding != null) {
+                            binding.uploadProgress.setVisibility(android.view.View.GONE);
+                        }
+                        String node = isCover ? "coverUrl" : "photoUrl";
+                        FirebaseDatabase.getInstance().getReference("users").child(targetUid).child(node).setValue(downloadUrl)
+                                .addOnSuccessListener(aVoid -> {
+                                    if (!isCover) {
+                                        FirebaseUser user = FirebaseAuth.getInstance().getCurrentUser();
+                                        if (user != null) {
+                                            UserProfileChangeRequest profileUpdates = new UserProfileChangeRequest.Builder()
+                                                    .setPhotoUri(android.net.Uri.parse(downloadUrl))
+                                                    .build();
+                                            user.updateProfile(profileUpdates);
+                                        }
+                                    }
+                                    Toast.makeText(ProfileInfoActivity.this, isCover ? "Cover photo updated" : "Profile photo updated", Toast.LENGTH_SHORT).show();
+                                });
+                    });
+                }
+
+                @Override
+                public void onProgress(int progress) {
+                    runOnUiThread(() -> {
+                        if (binding != null) {
+                            binding.uploadProgress.setProgress(progress);
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        if (binding != null) {
+                            binding.uploadProgress.setVisibility(android.view.View.GONE);
+                        }
+                        Toast.makeText(ProfileInfoActivity.this, "Upload failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Failed to read image", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -224,6 +336,7 @@ public class ProfileInfoActivity extends BaseActivity {
                                 String name = snapshot.child("displayName").getValue(String.class);
                                 String handle = snapshot.child("username").getValue(String.class);
                                 String photoUrl = snapshot.child("photoUrl").getValue(String.class);
+                                String coverUrl = snapshot.child("coverUrl").getValue(String.class);
                                 String email = snapshot.child("email").getValue(String.class);
 
                                 if (name != null) binding.profileName.setText(name);
@@ -237,6 +350,12 @@ public class ProfileInfoActivity extends BaseActivity {
                                             .centerCrop()
                                             .placeholder(R.mipmap.ic_launcher_round)
                                             .into(binding.profileImage);
+                                }
+                                if (coverUrl != null && !coverUrl.isEmpty()) {
+                                    Glide.with(ProfileInfoActivity.this)
+                                            .load(coverUrl)
+                                            .centerCrop()
+                                            .into(binding.coverImage);
                                 }
                             }
                         }

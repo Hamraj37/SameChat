@@ -49,4 +49,12 @@
     <string name="copy">Copy</string>
     <string name="forward">Forward</string>
     <string name="delete">Delete</string>
+    <string name="update_available">New version available!</string>
+    <string name="whats_new">What\'s New:</string>
+    <string name="update_now">Update Now</string>
+    <string name="later">Later</string>
+    <string name="edit_name">Edit Name</string>
+    <string name="edit_handle">Edit Username</string>
+    <string name="change_profile_photo">Change profile photo</string>
+    <string name="change_cover_photo">Change cover photo</string>
 </resources>

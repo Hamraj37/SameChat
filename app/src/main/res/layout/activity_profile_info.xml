@@ -14,114 +14,176 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical">
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <!-- Profile Header -->
-            <LinearLayout
+            <!-- Profile Header Card -->
+            <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="?attr/colorPrimaryContainer"
-                android:orientation="vertical"
-                android:padding="24dp">
+                app:cardCornerRadius="24dp"
+                app:cardElevation="2dp"
+                app:strokeWidth="0dp"
+                app:cardBackgroundColor="?attr/colorPrimaryContainer">
 
-                <com.google.android.material.card.MaterialCardView
-                    android:layout_width="120dp"
-                    android:layout_height="120dp"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="4dp"
-                    app:strokeWidth="0dp">
+                <FrameLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
 
                     <com.google.android.material.imageview.ShapeableImageView
-                        android:id="@+id/profile_image"
+                        android:id="@+id/cover_image"
                         android:layout_width="match_parent"
-                        android:layout_height="match_parent"
+                        android:layout_height="140dp"
                         android:scaleType="centerCrop"
-                        app:srcCompat="@mipmap/ic_launcher_round" />
+                        android:background="?attr/colorPrimaryContainer"
+                        app:shapeAppearanceOverlay="@style/ShapeAppearance.Material3.MediumComponent" />
 
-                </com.google.android.material.card.MaterialCardView>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="16dp"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:id="@+id/profile_name"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:textAppearance="?attr/textAppearanceHeadlineSmall"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        tools:text="Display Name" />
-
-                    <ImageButton
-                        android:id="@+id/edit_name_button"
-                        android:layout_width="48dp"
-                        android:layout_height="48dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:src="@android:drawable/ic_menu_edit"
-                        app:tint="?attr/colorOnPrimaryContainer"
-                        android:contentDescription="Edit Name" />
-
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:gravity="center_vertical">
-
-                    <TextView
-                        android:id="@+id/profile_handle"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        android:alpha="0.9"
-                        tools:text="\@username" />
-
-                    <ImageButton
-                        android:id="@+id/edit_handle_button"
-                        android:layout_width="40dp"
-                        android:layout_height="40dp"
-                        android:background="?attr/selectableItemBackgroundBorderless"
-                        android:src="@android:drawable/ic_menu_edit"
-                        app:tint="?attr/colorOnPrimaryContainer"
-                        android:alpha="0.9"
-                        android:contentDescription="Edit Username" />
-
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/profile_email_header"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnPrimaryContainer"
-                    android:alpha="0.7"
-                    tools:text="user@example.com" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/unfriend_button"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="16dp"
-                        android:text="@string/unfriend"
-                        android:textColor="?attr/colorError"
-                        app:icon="@android:drawable/ic_menu_delete"
-                        app:iconTint="?attr/colorError"
+                    <com.google.android.material.floatingactionbutton.FloatingActionButton
+                        android:id="@+id/edit_cover_image_fab"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:layout_gravity="bottom|end"
+                        android:layout_margin="12dp"
+                        app:fabCustomSize="32dp"
+                        app:maxImageSize="18dp"
+                        app:srcCompat="@drawable/ic_camera_black_24dp"
+                        app:tint="?attr/colorOnPrimary"
+                        app:backgroundTint="?attr/colorPrimary"
+                        android:contentDescription="@string/change_cover_photo"
                         android:visibility="gone"
                         tools:visibility="visible" />
 
-            </LinearLayout>
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="24dp"
+                        android:layout_marginTop="60dp">
+
+                        <com.google.android.material.card.MaterialCardView
+                            android:layout_width="120dp"
+                            android:layout_height="120dp"
+                            app:cardCornerRadius="16dp"
+                            app:cardElevation="4dp"
+                            app:strokeWidth="0dp">
+
+                            <FrameLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="match_parent">
+
+                                <com.google.android.material.imageview.ShapeableImageView
+                                    android:id="@+id/profile_image"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="match_parent"
+                                    android:scaleType="centerCrop"
+                                    app:srcCompat="@mipmap/ic_launcher_round" />
+
+                                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                                    android:id="@+id/edit_profile_image_fab"
+                                    android:layout_width="32dp"
+                                    android:layout_height="32dp"
+                                    android:layout_gravity="bottom|end"
+                                    android:layout_margin="4dp"
+                                    app:fabCustomSize="32dp"
+                                    app:maxImageSize="18dp"
+                                    app:srcCompat="@drawable/ic_camera_black_24dp"
+                                    app:tint="?attr/colorOnPrimary"
+                                    app:backgroundTint="?attr/colorPrimary"
+                                    android:contentDescription="@string/change_profile_photo"
+                                    android:visibility="gone"
+                                    tools:visibility="visible" />
+                            </FrameLayout>
+
+                        </com.google.android.material.card.MaterialCardView>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/profile_name"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:textAppearance="?attr/textAppearanceHeadlineSmall"
+                                android:textColor="?attr/colorOnPrimaryContainer"
+                                tools:text="Display Name" />
+
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:id="@+id/profile_handle"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:textAppearance="?attr/textAppearanceTitleMedium"
+                                android:textColor="?attr/colorOnPrimaryContainer"
+                                android:alpha="0.9"
+                                tools:text="\@username" />
+
+                        </LinearLayout>
+
+                        <TextView
+                            android:id="@+id/profile_email_header"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:textColor="?attr/colorOnPrimaryContainer"
+                            android:alpha="0.7"
+                            tools:text="user@example.com" />
+
+                    </LinearLayout>
+
+                    <ImageButton
+                        android:id="@+id/settings_button"
+                        android:layout_width="48dp"
+                        android:layout_height="48dp"
+                        android:layout_gravity="top|end"
+                        android:layout_margin="12dp"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:src="@drawable/ic_settings_black_24dp"
+                        app:tint="?attr/colorOnPrimaryContainer"
+                        android:contentDescription="@string/action_settings" />
+
+                </FrameLayout>
+
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.progressindicator.LinearProgressIndicator
+                android:id="@+id/upload_progress"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:indeterminate="false"
+                android:visibility="gone"
+                tools:visibility="visible"
+                tools:progress="50" />
 
         </LinearLayout>
-
     </androidx.core.widget.NestedScrollView>
+
+    <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
+        android:id="@+id/unfriend_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|center_horizontal"
+        android:layout_marginBottom="32dp"
+        android:text="@string/unfriend"
+        android:textColor="?attr/colorError"
+        app:icon="@android:drawable/ic_menu_delete"
+        app:iconTint="?attr/colorError"
+        app:backgroundTint="?attr/colorErrorContainer"
+        android:visibility="gone"
+        tools:visibility="visible" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

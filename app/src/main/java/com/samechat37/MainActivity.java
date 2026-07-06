@@ -85,6 +85,7 @@ public class MainActivity extends BaseActivity {
         PresenceManager.setUserOnline();
         checkAndRequestPermissions();
         startCallService();
+        com.samechat37.utils.UpdateManager.checkForUpdates(this);
     }
 
     private void setupUnreadCountBadge() {
