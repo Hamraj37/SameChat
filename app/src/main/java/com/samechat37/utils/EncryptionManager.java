@@ -34,8 +34,8 @@ public class EncryptionManager {
             kpg.initialize(2048);
             KeyPair kp = kpg.generateKeyPair();
             
-            String publicKeyStr = Base64.encodeToString(kp.getPublic().getEncoded(), Base64.DEFAULT);
-            String privateKeyStr = Base64.encodeToString(kp.getPrivate().getEncoded(), Base64.DEFAULT);
+            String publicKeyStr = Base64.encodeToString(kp.getPublic().getEncoded(), Base64.NO_WRAP);
+            String privateKeyStr = Base64.encodeToString(kp.getPrivate().getEncoded(), Base64.NO_WRAP);
 
             prefs.edit()
                     .putString(KEY_PUBLIC, publicKeyStr)
@@ -51,6 +51,33 @@ public class EncryptionManager {
 
     public static String getMyPublicKey(Context context) {
         return context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE).getString(KEY_PUBLIC, null);
+    }
+
+    public static byte[] encryptRaw(byte[] data, SecretKey aesKey) throws Exception {
+        Cipher aesCipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        aesCipher.init(Cipher.ENCRYPT_MODE, aesKey);
+        return aesCipher.doFinal(data);
+    }
+
+    public static byte[] decryptRaw(byte[] encryptedData, SecretKey aesKey) throws Exception {
+        Cipher aesCipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
+        aesCipher.init(Cipher.DECRYPT_MODE, aesKey);
+        return aesCipher.doFinal(encryptedData);
+    }
+
+    public static SecretKey generateAESKey() throws Exception {
+        KeyGenerator keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(256);
+        return keyGen.generateKey();
+    }
+
+    public static String encodeKey(SecretKey key) {
+        return Base64.encodeToString(key.getEncoded(), Base64.NO_WRAP);
+    }
+
+    public static SecretKey decodeKey(String encodedKey) {
+        byte[] decodedKey = Base64.decode(encodedKey, Base64.NO_WRAP);
+        return new SecretKeySpec(decodedKey, 0, decodedKey.length, "AES");
     }
 
     public static String encrypt(String content, String recipientPublicKeyStr, String senderPublicKeyStr) {

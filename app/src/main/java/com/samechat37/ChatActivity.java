@@ -174,35 +174,44 @@ public class ChatActivity extends BaseActivity {
         adapter.notifyItemInserted(messageList.size() - 1);
         chatRecycler.smoothScrollToPosition(messageList.size() - 1);
 
-        // Save URI to a temporary file for uploading
         try {
-            File tempFile = new File(getCacheDir(), fileName);
+            // 1. Read file to bytes
             java.io.InputStream inputStream = getContentResolver().openInputStream(uri);
-            java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile);
-            byte[] buffer = new byte[1024];
-            int read;
-            while (inputStream != null && (read = inputStream.read(buffer)) != -1) {
-                outputStream.write(buffer, 0, read);
-            }
-            outputStream.flush();
-            outputStream.close();
-            if (inputStream != null) inputStream.close();
+            if (inputStream == null) return;
+            byte[] bytes = new byte[inputStream.available()];
+            int actualRead = inputStream.read(bytes);
+            inputStream.close();
 
-            com.samechat37.utils.GitHubStorage.uploadFile(tempFile.getAbsolutePath(), remoteFolder, fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
+            // 2. Encrypt bytes
+            javax.crypto.SecretKey fileKey = com.samechat37.utils.EncryptionManager.generateAESKey();
+            byte[] encryptedBytes = com.samechat37.utils.EncryptionManager.encryptRaw(bytes, fileKey);
+            String encodedFileKey = com.samechat37.utils.EncryptionManager.encodeKey(fileKey);
+
+            // 3. Upload encrypted bytes
+            com.samechat37.utils.GitHubStorage.uploadBytes(encryptedBytes, remoteFolder, fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
                 @Override
                 public void onSuccess(String downloadUrl) {
                     runOnUiThread(() -> {
                         adapter.removeUploadProgress(messageId);
                         
-                        String finalUrl = downloadUrl;
-                        String myPubKey = com.samechat37.utils.EncryptionManager.initKeys(ChatActivity.this);
-                        if (receiverPublicKey != null && myPubKey != null) {
-                            finalUrl = com.samechat37.utils.EncryptionManager.encrypt(downloadUrl, receiverPublicKey, myPubKey);
-                        }
+                        // Combine URL and FileKey into a JSON
+                        try {
+                            org.json.JSONObject mediaJson = new org.json.JSONObject();
+                            mediaJson.put("u", downloadUrl);
+                            mediaJson.put("k", encodedFileKey);
+                            String mediaInfo = mediaJson.toString();
 
-                        Message message = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, finalUrl, 0);
-                        chatRef.child(messageId).setValue(message);
-                        tempFile.delete();
+                            String finalContent = mediaInfo;
+                            String myPubKey = com.samechat37.utils.EncryptionManager.initKeys(ChatActivity.this);
+                            if (receiverPublicKey != null && myPubKey != null) {
+                                finalContent = com.samechat37.utils.EncryptionManager.encrypt(mediaInfo, receiverPublicKey, myPubKey);
+                            }
+
+                            Message message = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, finalContent, 0);
+                            chatRef.child(messageId).setValue(message);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
                     });
                 }
 
@@ -219,11 +228,10 @@ public class ChatActivity extends BaseActivity {
                         adapter.notifyDataSetChanged();
                         android.util.Log.e("ChatActivity", "GitHub Media Upload failed", e);
                         android.widget.Toast.makeText(ChatActivity.this, "Failed to upload " + type, android.widget.Toast.LENGTH_SHORT).show();
-                        tempFile.delete();
                     });
                 }
             });
-        } catch (IOException e) {
+        } catch (Exception e) {
             android.util.Log.e("ChatActivity", "File preparation failed", e);
         }
     }
@@ -288,43 +296,68 @@ public class ChatActivity extends BaseActivity {
         adapter.notifyItemInserted(messageList.size() - 1);
         chatRecycler.smoothScrollToPosition(messageList.size() - 1);
 
-        String fileName = messageId + ".3gp";
-        com.samechat37.utils.GitHubStorage.uploadFile(path, "voice_messages", fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
-            @Override
-            public void onSuccess(String downloadUrl) {
-                runOnUiThread(() -> {
-                    adapter.removeUploadProgress(messageId);
-                    
-                    String finalUrl = downloadUrl;
-                    String myPubKey = com.samechat37.utils.EncryptionManager.getMyPublicKey(ChatActivity.this);
-                    if (receiverPublicKey != null && myPubKey != null) {
-                        finalUrl = com.samechat37.utils.EncryptionManager.encrypt(downloadUrl, receiverPublicKey, myPubKey);
-                    }
+        try {
+            // 1. Read file to bytes
+            File file = new File(path);
+            byte[] bytes = new byte[(int) file.length()];
+            java.io.FileInputStream fis = new java.io.FileInputStream(file);
+            fis.read(bytes);
+            fis.close();
 
-                    Message message = new Message(messageId, senderId, receiverId, "Voice message", System.currentTimeMillis(), "voice", finalUrl, duration);
-                    chatRef.child(messageId).setValue(message);
-                    
-                    File tempFile = new File(path);
-                    if (tempFile.exists()) tempFile.delete();
-                });
-            }
+            // 2. Encrypt bytes
+            javax.crypto.SecretKey fileKey = com.samechat37.utils.EncryptionManager.generateAESKey();
+            byte[] encryptedBytes = com.samechat37.utils.EncryptionManager.encryptRaw(bytes, fileKey);
+            String encodedFileKey = com.samechat37.utils.EncryptionManager.encodeKey(fileKey);
 
-            @Override
-            public void onProgress(int progress) {
-                runOnUiThread(() -> adapter.updateUploadProgress(messageId, progress));
-            }
+            String fileName = messageId + ".3gp";
+            com.samechat37.utils.GitHubStorage.uploadBytes(encryptedBytes, "voice_messages", fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
+                @Override
+                public void onSuccess(String downloadUrl) {
+                    runOnUiThread(() -> {
+                        adapter.removeUploadProgress(messageId);
 
-            @Override
-            public void onFailure(Exception e) {
-                runOnUiThread(() -> {
-                    adapter.removeUploadProgress(messageId);
-                    messageList.remove(pendingMsg);
-                    adapter.notifyDataSetChanged();
-                    android.util.Log.e("ChatActivity", "GitHub Upload failed", e);
-                    android.widget.Toast.makeText(ChatActivity.this, "Failed to upload audio to GitHub", android.widget.Toast.LENGTH_SHORT).show();
-                });
-            }
-        });
+                        try {
+                            org.json.JSONObject mediaJson = new org.json.JSONObject();
+                            mediaJson.put("u", downloadUrl);
+                            mediaJson.put("k", encodedFileKey);
+                            String mediaInfo = mediaJson.toString();
+
+                            String finalContent = mediaInfo;
+                            String myPubKey = com.samechat37.utils.EncryptionManager.getMyPublicKey(ChatActivity.this);
+                            if (receiverPublicKey != null && myPubKey != null) {
+                                finalContent = com.samechat37.utils.EncryptionManager.encrypt(mediaInfo, receiverPublicKey, myPubKey);
+                            }
+
+                            Message message = new Message(messageId, senderId, receiverId, "Voice message", System.currentTimeMillis(), "voice", finalContent, duration);
+                            chatRef.child(messageId).setValue(message);
+
+                            File tempFile = new File(path);
+                            if (tempFile.exists()) tempFile.delete();
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
+                }
+
+                @Override
+                public void onProgress(int progress) {
+                    runOnUiThread(() -> adapter.updateUploadProgress(messageId, progress));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        adapter.removeUploadProgress(messageId);
+                        messageList.remove(pendingMsg);
+                        adapter.notifyDataSetChanged();
+                        android.util.Log.e("ChatActivity", "GitHub Upload failed", e);
+                        android.widget.Toast.makeText(ChatActivity.this, "Failed to upload audio to GitHub", android.widget.Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void startCall(boolean isVideo) {

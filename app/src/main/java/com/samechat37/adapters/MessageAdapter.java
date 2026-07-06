@@ -35,10 +35,17 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private int playingPosition = -1;
     private android.os.Handler progressHandler = new android.os.Handler(android.os.Looper.getMainLooper());
     private final java.util.Map<String, Integer> uploadProgressMap = new java.util.HashMap<>();
+    private android.content.Context context;
 
     public MessageAdapter(List<Message> messageList) {
         this.messageList = messageList;
         this.currentUserId = FirebaseAuth.getInstance().getUid();
+    }
+
+    @Override
+    public void onAttachedToRecyclerView(@NonNull RecyclerView recyclerView) {
+        super.onAttachedToRecyclerView(recyclerView);
+        this.context = recyclerView.getContext();
     }
 
     public void updateUploadProgress(String messageId, int progress) {
@@ -290,15 +297,14 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void bind(Message message) {
             textTimestamp.setText(formatDate(message.getTimestamp()));
             
-            String mediaUrl = message.getMediaUrl();
-            Object loadSource = mediaUrl;
-            if (mediaUrl != null && mediaUrl.startsWith("local:")) {
-                loadSource = android.net.Uri.parse(mediaUrl.substring(6));
+            String mediaData = message.getMediaUrl();
+            if (mediaData != null && mediaData.startsWith("local:")) {
+                com.bumptech.glide.Glide.with(itemView.getContext())
+                        .load(android.net.Uri.parse(mediaData.substring(6)))
+                        .into(imageMessage);
+            } else {
+                loadEncryptedMedia(imageMessage, mediaData, false);
             }
-
-            com.bumptech.glide.Glide.with(itemView.getContext())
-                    .load(loadSource)
-                    .into(imageMessage);
 
             if (message.isSeen()) {
                 imageStatus.setColorFilter(androidx.core.content.ContextCompat.getColor(itemView.getContext(), R.color.whatsapp_blue));
@@ -317,7 +323,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
-    static class ImageReceivedViewHolder extends RecyclerView.ViewHolder {
+    class ImageReceivedViewHolder extends RecyclerView.ViewHolder {
         android.widget.ImageView imageMessage;
         TextView textTimestamp;
 
@@ -329,19 +335,58 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
         void bind(Message message) {
             textTimestamp.setText(formatDate(message.getTimestamp()));
-            
-            String mediaUrl = message.getMediaUrl();
-            Object loadSource = mediaUrl;
-            if (mediaUrl != null && mediaUrl.startsWith("local:")) {
-                loadSource = android.net.Uri.parse(mediaUrl.substring(6));
-            }
-
-            com.bumptech.glide.Glide.with(itemView.getContext())
-                    .load(loadSource)
-                    .into(imageMessage);
-
+            loadEncryptedMedia(imageMessage, message.getMediaUrl(), false);
             itemView.setOnClickListener(v -> openFullMedia(v.getContext(), message));
         }
+    }
+
+    private void loadEncryptedMedia(android.widget.ImageView imageView, String encryptedInfo, boolean isVideo) {
+        if (encryptedDataIsEmpty(encryptedInfo)) return;
+
+        try {
+            org.json.JSONObject json = new org.json.JSONObject(encryptedInfo);
+            String url = json.getString("u");
+            String key = json.getString("k");
+
+            com.samechat37.utils.GitHubStorage.downloadFile(url, new okhttp3.Callback() {
+                @Override
+                public void onFailure(@NonNull okhttp3.Call call, @NonNull java.io.IOException e) {}
+
+                @Override
+                public void onResponse(@NonNull okhttp3.Call call, @NonNull okhttp3.Response response) throws java.io.IOException {
+                    if (response.isSuccessful() && response.body() != null) {
+                        try {
+                            byte[] encryptedBytes = response.body().bytes();
+                            javax.crypto.SecretKey secretKey = com.samechat37.utils.EncryptionManager.decodeKey(key);
+                            byte[] decryptedBytes = com.samechat37.utils.EncryptionManager.decryptRaw(encryptedBytes, secretKey);
+                            
+                            if (context instanceof android.app.Activity) {
+                                ((android.app.Activity) context).runOnUiThread(() -> {
+                                    if (isVideo) {
+                                        com.bumptech.glide.Glide.with(context)
+                                                .load(decryptedBytes)
+                                                .frame(1000000)
+                                                .into(imageView);
+                                    } else {
+                                        com.bumptech.glide.Glide.with(context)
+                                                .load(decryptedBytes)
+                                                .into(imageView);
+                                    }
+                                });
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            });
+        } catch (Exception e) {
+            com.bumptech.glide.Glide.with(imageView.getContext()).load(encryptedInfo).into(imageView);
+        }
+    }
+
+    private static boolean encryptedDataIsEmpty(String data) {
+        return data == null || data.isEmpty();
     }
 
     class VideoSentViewHolder extends RecyclerView.ViewHolder {
@@ -361,16 +406,15 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         void bind(Message message) {
             textTimestamp.setText(formatDate(message.getTimestamp()));
             
-            String mediaUrl = message.getMediaUrl();
-            Object loadSource = mediaUrl;
-            if (mediaUrl != null && mediaUrl.startsWith("local:")) {
-                loadSource = android.net.Uri.parse(mediaUrl.substring(6));
+            String mediaData = message.getMediaUrl();
+            if (mediaData != null && mediaData.startsWith("local:")) {
+                com.bumptech.glide.Glide.with(itemView.getContext())
+                        .load(android.net.Uri.parse(mediaData.substring(6)))
+                        .frame(1000000)
+                        .into(videoThumbnail);
+            } else {
+                loadEncryptedMedia(videoThumbnail, mediaData, true);
             }
-
-            com.bumptech.glide.Glide.with(itemView.getContext())
-                    .load(loadSource)
-                    .frame(1000000)
-                    .into(videoThumbnail);
 
             if (message.isSeen()) {
                 imageStatus.setColorFilter(androidx.core.content.ContextCompat.getColor(itemView.getContext(), R.color.whatsapp_blue));
@@ -389,7 +433,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
     }
 
-    static class VideoReceivedViewHolder extends RecyclerView.ViewHolder {
+    class VideoReceivedViewHolder extends RecyclerView.ViewHolder {
         android.widget.ImageView videoThumbnail;
         TextView textTimestamp;
 
@@ -401,34 +445,40 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
         void bind(Message message) {
             textTimestamp.setText(formatDate(message.getTimestamp()));
-            
-            String mediaUrl = message.getMediaUrl();
-            Object loadSource = mediaUrl;
-            if (mediaUrl != null && mediaUrl.startsWith("local:")) {
-                loadSource = android.net.Uri.parse(mediaUrl.substring(6));
-            }
-
-            com.bumptech.glide.Glide.with(itemView.getContext())
-                    .load(loadSource)
-                    .frame(1000000)
-                    .into(videoThumbnail);
-
+            loadEncryptedMedia(videoThumbnail, message.getMediaUrl(), true);
             itemView.setOnClickListener(v -> openFullMedia(v.getContext(), message));
         }
     }
 
     private static void openFullMedia(android.content.Context context, Message message) {
-        String mediaUrl = message.getMediaUrl();
-        if (mediaUrl == null) return;
+        String mediaData = message.getMediaUrl();
+        if (mediaData == null) return;
 
-        if (mediaUrl.startsWith("local:")) {
-            mediaUrl = mediaUrl.substring(6);
+        if (mediaData.startsWith("local:")) {
+            android.content.Intent intent = new android.content.Intent(context, com.samechat37.FullMediaActivity.class);
+            intent.putExtra("type", message.getType());
+            intent.putExtra("url", mediaData.substring(6));
+            context.startActivity(intent);
+            return;
         }
 
-        android.content.Intent intent = new android.content.Intent(context, com.samechat37.FullMediaActivity.class);
-        intent.putExtra("type", message.getType());
-        intent.putExtra("url", mediaUrl);
-        context.startActivity(intent);
+        try {
+            org.json.JSONObject json = new org.json.JSONObject(mediaData);
+            String url = json.getString("u");
+            String key = json.getString("k");
+
+            // For full screen, we pass the encrypted info, FullMediaActivity will handle download/decrypt
+            android.content.Intent intent = new android.content.Intent(context, com.samechat37.FullMediaActivity.class);
+            intent.putExtra("type", message.getType());
+            intent.putExtra("encrypted_info", mediaData);
+            context.startActivity(intent);
+        } catch (Exception e) {
+            // Fallback
+            android.content.Intent intent = new android.content.Intent(context, com.samechat37.FullMediaActivity.class);
+            intent.putExtra("type", message.getType());
+            intent.putExtra("url", mediaData);
+            context.startActivity(intent);
+        }
     }
 
     private void updatePlayPauseUI(android.widget.ImageView btn, com.google.android.material.progressindicator.LinearProgressIndicator progress, Message message, int position) {
@@ -455,16 +505,55 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         notifyItemChanged(position);
     }
 
-    private void playAudio(String url, int position) {
-        if (url == null || url.isEmpty()) return;
+    private void playAudio(String mediaData, int position) {
+        if (mediaData == null || mediaData.isEmpty()) return;
         
         try {
-            mediaPlayer = new android.media.MediaPlayer();
-            String playUrl = url;
-            if (url.startsWith("local:")) {
-                playUrl = url.substring(6);
+            if (mediaData.startsWith("local:")) {
+                startMediaPlayer(mediaData.substring(6), position);
+            } else {
+                // Encrypted playback
+                org.json.JSONObject json = new org.json.JSONObject(mediaData);
+                String url = json.getString("u");
+                String key = json.getString("k");
+
+                com.samechat37.utils.GitHubStorage.downloadFile(url, new okhttp3.Callback() {
+                    @Override
+                    public void onFailure(@NonNull okhttp3.Call call, @NonNull java.io.IOException e) {}
+
+                    @Override
+                    public void onResponse(@NonNull okhttp3.Call call, @NonNull okhttp3.Response response) throws java.io.IOException {
+                        if (response.isSuccessful() && response.body() != null) {
+                            try {
+                                byte[] encryptedBytes = response.body().bytes();
+                                javax.crypto.SecretKey secretKey = com.samechat37.utils.EncryptionManager.decodeKey(key);
+                                byte[] decryptedBytes = com.samechat37.utils.EncryptionManager.decryptRaw(encryptedBytes, secretKey);
+
+                                java.io.File tempFile = java.io.File.createTempFile("voice", ".3gp", context.getCacheDir());
+                                java.io.FileOutputStream fos = new java.io.FileOutputStream(tempFile);
+                                fos.write(decryptedBytes);
+                                fos.close();
+
+                                if (context instanceof android.app.Activity) {
+                                    ((android.app.Activity) context).runOnUiThread(() -> startMediaPlayer(tempFile.getAbsolutePath(), position));
+                                }
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                        }
+                    }
+                });
             }
-            mediaPlayer.setDataSource(playUrl);
+        } catch (Exception e) {
+            // Fallback for old plain URLs
+            startMediaPlayer(mediaData, position);
+        }
+    }
+
+    private void startMediaPlayer(String path, int position) {
+        try {
+            mediaPlayer = new android.media.MediaPlayer();
+            mediaPlayer.setDataSource(path);
             mediaPlayer.prepareAsync();
             mediaPlayer.setOnPreparedListener(mp -> {
                 playingPosition = position;

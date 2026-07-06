@@ -45,7 +45,15 @@ public class GitHubStorage {
             FileInputStream fis = new FileInputStream(file);
             fis.read(bytes);
             fis.close();
+            
+            uploadBytes(bytes, remotePath, fileName, callback);
+        } catch (Exception e) {
+            callback.onFailure(e);
+        }
+    }
 
+    public static void uploadBytes(byte[] bytes, String remotePath, String fileName, UploadCallback callback) {
+        try {
             String encodedContent = Base64.encodeToString(bytes, Base64.NO_WRAP);
             String url = String.format("https://api.github.com/repos/%s/%s/contents/%s/%s", OWNER, REPO, remotePath, fileName);
 
@@ -86,6 +94,13 @@ public class GitHubStorage {
         } catch (Exception e) {
             callback.onFailure(e);
         }
+    }
+
+    public static void downloadFile(String url, Callback callback) {
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
+        client.newCall(request).enqueue(callback);
     }
 
     private static class ProgressRequestBody extends RequestBody {
