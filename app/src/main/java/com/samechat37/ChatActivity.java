@@ -182,7 +182,13 @@ public class ChatActivity extends BaseActivity {
     }
 
     private void checkForwardedMessage() {
-        if (getIntent().hasExtra("forward_content")) {
+        if (getIntent().hasExtra("forward_list")) {
+            ArrayList<Message> list = (ArrayList<Message>) getIntent().getSerializableExtra("forward_list");
+            if (list != null && !list.isEmpty()) {
+                forwardBatch(list);
+            }
+            getIntent().removeExtra("forward_list");
+        } else if (getIntent().hasExtra("forward_content")) {
             String content = getIntent().getStringExtra("forward_content");
             String type = getIntent().getStringExtra("forward_type");
             if (type == null) type = "text";
@@ -201,6 +207,62 @@ public class ChatActivity extends BaseActivity {
                         });
             } else {
                 sendForwardedMessage(content, type);
+            }
+        }
+    }
+
+    private void forwardBatch(ArrayList<Message> list) {
+        if (receiverPublicKey == null) {
+            FirebaseDatabase.getInstance().getReference("users").child(receiverId).child("publicKey")
+                    .addListenerForSingleValueEvent(new ValueEventListener() {
+                        @Override
+                        public void onDataChange(@NonNull DataSnapshot snapshot) {
+                            receiverPublicKey = snapshot.getValue(String.class);
+                            for (Message m : list) {
+                                sendForwardedMessage(m);
+                            }
+                        }
+                        @Override public void onCancelled(@NonNull DatabaseError error) {}
+                    });
+        } else {
+            for (Message m : list) {
+                sendForwardedMessage(m);
+            }
+        }
+    }
+
+    private void sendForwardedMessage(Message m) {
+        String type = m.getType();
+        String content = (type == null || "text".equals(type)) ? m.getText() : m.getMediaUrl();
+        if (content == null) return;
+
+        if ("text".equals(type) || type == null) {
+            String encryptedText = content;
+            String myPubKey = com.samechat37.utils.EncryptionManager.getMyPublicKey(this);
+            if (receiverPublicKey != null && myPubKey != null) {
+                encryptedText = com.samechat37.utils.EncryptionManager.encrypt(content, receiverPublicKey, myPubKey);
+            }
+            
+            String messageId = chatRef.push().getKey();
+            Message message = new Message(messageId, senderId, receiverId, encryptedText, System.currentTimeMillis());
+            message.setForwarded(true);
+            if (messageId != null) {
+                chatRef.child(messageId).setValue(message);
+            }
+        } else {
+            String encryptedMediaInfo = content;
+            String myPubKey = com.samechat37.utils.EncryptionManager.getMyPublicKey(this);
+            if (receiverPublicKey != null && myPubKey != null) {
+                try {
+                    encryptedMediaInfo = com.samechat37.utils.EncryptionManager.encrypt(content, receiverPublicKey, myPubKey);
+                } catch (Exception e) { e.printStackTrace(); }
+            }
+
+            String messageId = chatRef.push().getKey();
+            Message message = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, encryptedMediaInfo, m.getDuration());
+            message.setForwarded(true);
+            if (messageId != null) {
+                chatRef.child(messageId).setValue(message);
             }
         }
     }
@@ -671,8 +733,20 @@ public class ChatActivity extends BaseActivity {
             selectionActionsContainer.setVisibility(View.VISIBLE);
             selectionCountText.setText(String.valueOf(count));
             
+            List<Message> selected = adapter.getSelectedMessages();
+            boolean isSingle = count == 1;
+            boolean isTextOnly = true;
+            for (Message m : selected) {
+                if (m.getType() != null && !m.getType().equals("text")) {
+                    isTextOnly = false;
+                    break;
+                }
+            }
+
             // Show/hide reply based on count
-            findViewById(R.id.btn_reply_selected).setVisibility(count == 1 ? View.VISIBLE : View.GONE);
+            findViewById(R.id.btn_reply_selected).setVisibility(isSingle ? View.VISIBLE : View.GONE);
+            // Hide copy for media and multi-select (as requested)
+            findViewById(R.id.btn_copy_selected).setVisibility(isSingle && isTextOnly ? View.VISIBLE : View.GONE);
             
             androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
             toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material); 
@@ -728,10 +802,32 @@ public class ChatActivity extends BaseActivity {
         List<Message> selected = adapter.getSelectedMessages();
         if (selected.isEmpty()) return;
 
-        // For simplicity, we only support forwarding one message at a time in the current SearchUserActivity logic
-        // but let's just forward the first one for now or update it.
-        forwardMessage(selected.get(0));
+        ArrayList<Message> forwardList = new ArrayList<>();
+        for (Message m : selected) {
+            forwardList.add(prepareMessageForForward(m));
+        }
+
+        Intent intent = new Intent(this, SearchUserActivity.class);
+        intent.putExtra("forward_message", true);
+        intent.putExtra("forward_list", forwardList);
+        startActivity(intent);
+        
         adapter.clearSelection();
+        Toast.makeText(this, "Select a user to forward to", Toast.LENGTH_SHORT).show();
+    }
+
+    private Message prepareMessageForForward(Message message) {
+        Message f = new Message();
+        f.setType(message.getType());
+        f.setDuration(message.getDuration());
+        boolean isMe = message.getSenderId().equals(senderId);
+        if (message.getType() == null || "text".equals(message.getType())) {
+            f.setText(com.samechat37.utils.EncryptionManager.decrypt(message.getText(), this, isMe));
+        } else {
+            f.setMediaUrl(com.samechat37.utils.EncryptionManager.decrypt(message.getMediaUrl(), this, isMe));
+        }
+        f.setForwarded(true);
+        return f;
     }
 
     private void deleteSelectedMessages() {
@@ -887,21 +983,12 @@ public class ChatActivity extends BaseActivity {
     }
 
     private void forwardMessage(Message message) {
-        // Simple forward: send message content to SearchUserActivity to pick a recipient
+        ArrayList<Message> forwardList = new ArrayList<>();
+        forwardList.add(prepareMessageForForward(message));
+
         Intent intent = new Intent(this, SearchUserActivity.class);
         intent.putExtra("forward_message", true);
-        
-        boolean isMe = message.getSenderId().equals(senderId);
-        String content;
-        if (message.getType() == null || message.getType().equals("text")) {
-            content = com.samechat37.utils.EncryptionManager.decrypt(message.getText(), this, isMe);
-        } else {
-            content = com.samechat37.utils.EncryptionManager.decrypt(message.getMediaUrl(), this, isMe);
-        }
-        
-        intent.putExtra("content", content);
-        intent.putExtra("type", message.getType());
-        intent.putExtra("duration", message.getDuration());
+        intent.putExtra("forward_list", forwardList);
         startActivity(intent);
         Toast.makeText(this, "Select a user to forward to", Toast.LENGTH_SHORT).show();
     }

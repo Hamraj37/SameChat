@@ -136,9 +136,13 @@ public class SearchUserActivity extends BaseActivity {
             intent.putExtra("photoUrl", user.getPhotoUrl());
             
             if (getIntent().getBooleanExtra("forward_message", false)) {
-                intent.putExtra("forward_content", getIntent().getStringExtra("content"));
-                intent.putExtra("forward_type", getIntent().getStringExtra("type"));
-                intent.putExtra("forward_duration", getIntent().getIntExtra("duration", 0));
+                if (getIntent().hasExtra("forward_list")) {
+                    intent.putExtra("forward_list", getIntent().getSerializableExtra("forward_list"));
+                } else {
+                    intent.putExtra("forward_content", getIntent().getStringExtra("content"));
+                    intent.putExtra("forward_type", getIntent().getStringExtra("type"));
+                    intent.putExtra("forward_duration", getIntent().getIntExtra("duration", 0));
+                }
                 intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             }
             

@@ -1,6 +1,6 @@
 package com.samechat37.models;
 
-public class Message {
+public class Message implements java.io.Serializable {
     private String messageId;
     private String senderId;
     private String receiverId;
