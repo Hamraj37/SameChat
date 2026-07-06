@@ -9,6 +9,7 @@ public class User {
     private String searchName;
     private boolean online;
     private long lastSeen;
+    private String publicKey;
 
     public User() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
@@ -85,5 +86,13 @@ public class User {
 
     public void setLastSeen(long lastSeen) {
         this.lastSeen = lastSeen;
+    }
+
+    public String getPublicKey() {
+        return publicKey;
+    }
+
+    public void setPublicKey(String publicKey) {
+        this.publicKey = publicKey;
     }
 }

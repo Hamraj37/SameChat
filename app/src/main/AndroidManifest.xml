@@ -62,7 +62,11 @@
             android:name=".CallActivity"
             android:exported="false"
             android:theme="@style/Theme.SameChat.NoActionBar" />
-
+        <activity
+            android:name=".FullMediaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SameChat.NoActionBar"
+            android:screenOrientation="sensor" />
         <service
             android:name=".services.CallService"
             android:enabled="true"

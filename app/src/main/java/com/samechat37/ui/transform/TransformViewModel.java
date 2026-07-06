@@ -33,6 +33,7 @@ public class TransformViewModel extends AndroidViewModel {
     private final MutableLiveData<List<ChatItem>> mAllChats = new MutableLiveData<>();
     private final MutableLiveData<List<ChatItem>> mFilteredChats = new MutableLiveData<>();
     private final Map<String, ChatItem> chatsMap = new HashMap<>();
+    private final java.util.Set<String> observedFriends = new java.util.HashSet<>();
     private final SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm a", Locale.getDefault());
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd", Locale.getDefault());
     private final ChatItemDao chatItemDao;
@@ -93,7 +94,8 @@ public class TransformViewModel extends AndroidViewModel {
 
                         for (DataSnapshot ds : snapshot.getChildren()) {
                             String friendUid = ds.getKey();
-                            if (friendUid != null) {
+                            if (friendUid != null && !observedFriends.contains(friendUid)) {
+                                observedFriends.add(friendUid);
                                 observeFriend(myUid, friendUid);
                             }
                         }

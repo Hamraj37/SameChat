@@ -39,4 +39,8 @@
     <string name="prompt_login">Already have an account? Log in</string>
     <string name="action_google_sign_in">Sign in with Google</string>
     <string name="msg_status">Message status</string>
+    <string name="play_voice_msg">Play Voice Message</string>
+    <string name="zero_time">0:00</string>
+    <string name="e2ee_notice">🔒 Messages and calls are end-to-end encrypted. No one outside of this chat, not even SameChat, can read or listen to them.</string>
+    <string name="back">Back</string>
 </resources>

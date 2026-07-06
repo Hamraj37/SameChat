@@ -125,7 +125,7 @@ public class TransformFragment extends Fragment {
             super(new DiffUtil.ItemCallback<ChatItem>() {
                 @Override
                 public boolean areItemsTheSame(@NonNull ChatItem oldItem, @NonNull ChatItem newItem) {
-                    return oldItem.getName().equals(newItem.getName());
+                    return oldItem.getUid().equals(newItem.getUid());
                 }
 
                 @Override

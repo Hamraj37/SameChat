@@ -124,6 +124,21 @@
 
     </com.google.android.material.appbar.AppBarLayout>
 
+    <TextView
+        android:id="@+id/encryption_notice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="32dp"
+        android:layout_marginTop="8dp"
+        android:background="?attr/colorSurfaceVariant"
+        android:padding="8dp"
+        android:text="@string/e2ee_notice"
+        android:textAlignment="center"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:alpha="0.8"
+        app:layout_constraintTop_toBottomOf="@id/appBarLayout" />
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/chat_recycler"
         android:layout_width="match_parent"
@@ -131,7 +146,7 @@
         android:clipToPadding="false"
         android:padding="8dp"
         app:layout_constraintBottom_toTopOf="@+id/input_container"
-        app:layout_constraintTop_toBottomOf="@+id/appBarLayout" />
+        app:layout_constraintTop_toBottomOf="@+id/encryption_notice" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/input_container"
@@ -150,6 +165,18 @@
             android:gravity="center_vertical"
             android:orientation="horizontal"
             android:padding="4dp">
+
+            <ImageView
+                android:id="@+id/btn_attachment"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:layout_marginStart="4dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:padding="8dp"
+                android:src="@android:drawable/ic_menu_share"
+                android:rotation="135"
+                android:contentDescription="Attach File"
+                app:tint="?attr/colorOnSurfaceVariant" />
 
             <EditText
                 android:id="@+id/message_input"
@@ -171,7 +198,7 @@
                 android:layout_height="wrap_content"
                 android:layout_margin="4dp"
                 android:contentDescription="Send"
-                android:src="@android:drawable/ic_menu_send"
+                android:src="@android:drawable/ic_btn_speak_now"
                 app:fabCustomSize="48dp"
                 app:elevation="0dp"
                 app:tint="?attr/colorOnPrimary"

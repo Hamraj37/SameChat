@@ -160,6 +160,13 @@ public class MainActivity extends BaseActivity {
     }
 
     private void setupNavHeader() {
+        // Init Encryption Keys
+        String pubKey = com.samechat37.utils.EncryptionManager.initKeys(this);
+        FirebaseUser currentUser = FirebaseAuth.getInstance().getCurrentUser();
+        if (currentUser != null && pubKey != null) {
+            FirebaseDatabase.getInstance().getReference("users").child(currentUser.getUid()).child("publicKey").setValue(pubKey);
+        }
+
         NavigationView navigationView = null;
         try {
             navigationView = findViewById(R.id.nav_view);

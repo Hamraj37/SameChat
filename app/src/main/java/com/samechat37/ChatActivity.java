@@ -26,6 +26,8 @@ import com.samechat37.adapters.MessageAdapter;
 import com.samechat37.models.Message;
 import com.samechat37.utils.PresenceManager;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -40,10 +42,34 @@ public class ChatActivity extends BaseActivity {
     private MessageAdapter adapter;
     private List<Message> messageList = new ArrayList<>();
     private EditText messageInput;
+    private com.google.android.material.floatingactionbutton.FloatingActionButton btnSend;
+    private ImageView btnAttachment;
     private DatabaseReference chatRef;
     private boolean isFriend = false;
     private ValueEventListener messageListener;
     public static String openedChatId = null;
+    private String receiverPublicKey = null;
+
+    private android.media.MediaRecorder mediaRecorder;
+    private String audioPath = null;
+    private long recordStartTime = 0;
+    private boolean isRecording = false;
+
+    private final androidx.activity.result.ActivityResultLauncher<String> pickImageLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+                    uri -> {
+                        if (uri != null) {
+                            uploadMedia(uri, "image");
+                        }
+                    });
+
+    private final androidx.activity.result.ActivityResultLauncher<String> pickVideoLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
+                    uri -> {
+                        if (uri != null) {
+                            uploadMedia(uri, "video");
+                        }
+                    });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,11 +92,239 @@ public class ChatActivity extends BaseActivity {
         checkFriendStatus();
 
         messageInput = findViewById(R.id.message_input);
-        findViewById(R.id.btn_send).setOnClickListener(v -> sendMessage());
+        btnSend = findViewById(R.id.btn_send);
+        btnAttachment = findViewById(R.id.btn_attachment);
+        
+        setupInputListeners();
+
         findViewById(R.id.btn_audio_call).setOnClickListener(v -> startCall(false));
         findViewById(R.id.btn_video_call).setOnClickListener(v -> startCall(true));
 
         setupPresenceListener();
+    }
+
+    private void setupInputListeners() {
+        btnAttachment.setOnClickListener(v -> showAttachmentMenu());
+
+        messageInput.addTextChangedListener(new android.text.TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                if (s.toString().trim().isEmpty()) {
+                    btnSend.setImageResource(android.R.drawable.ic_btn_speak_now);
+                } else {
+                    btnSend.setImageResource(android.R.drawable.ic_menu_send);
+                }
+            }
+
+            @Override
+            public void afterTextChanged(android.text.Editable s) {}
+        });
+
+        btnSend.setOnTouchListener((v, event) -> {
+            String text = messageInput.getText().toString().trim();
+            if (text.isEmpty()) {
+                // Voice message mode
+                switch (event.getAction()) {
+                    case android.view.MotionEvent.ACTION_DOWN:
+                        v.performClick();
+                        startRecording();
+                        return true;
+                    case android.view.MotionEvent.ACTION_UP:
+                    case android.view.MotionEvent.ACTION_CANCEL:
+                        stopRecordingAndSend();
+                        return true;
+                }
+            } else if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                v.performClick();
+                sendMessage();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private void showAttachmentMenu() {
+        String[] options = {"Photo", "Video"};
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Select Attachment")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        pickImageLauncher.launch("image/*");
+                    } else {
+                        pickVideoLauncher.launch("video/*");
+                    }
+                })
+                .show();
+    }
+
+    private void uploadMedia(android.net.Uri uri, String type) {
+        String messageId = chatRef.push().getKey();
+        if (messageId == null) return;
+
+        String extension = type.equals("image") ? ".jpg" : ".mp4";
+        String fileName = messageId + extension;
+        String remoteFolder = type.equals("image") ? "images" : "videos";
+
+        // Add placeholder message locally
+        Message pendingMsg = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, "local:" + uri.toString(), 0);
+        messageList.add(pendingMsg);
+        adapter.notifyItemInserted(messageList.size() - 1);
+        chatRecycler.smoothScrollToPosition(messageList.size() - 1);
+
+        // Save URI to a temporary file for uploading
+        try {
+            File tempFile = new File(getCacheDir(), fileName);
+            java.io.InputStream inputStream = getContentResolver().openInputStream(uri);
+            java.io.FileOutputStream outputStream = new java.io.FileOutputStream(tempFile);
+            byte[] buffer = new byte[1024];
+            int read;
+            while (inputStream != null && (read = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, read);
+            }
+            outputStream.flush();
+            outputStream.close();
+            if (inputStream != null) inputStream.close();
+
+            com.samechat37.utils.GitHubStorage.uploadFile(tempFile.getAbsolutePath(), remoteFolder, fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
+                @Override
+                public void onSuccess(String downloadUrl) {
+                    runOnUiThread(() -> {
+                        adapter.removeUploadProgress(messageId);
+                        
+                        String finalUrl = downloadUrl;
+                        String myPubKey = com.samechat37.utils.EncryptionManager.initKeys(ChatActivity.this);
+                        if (receiverPublicKey != null && myPubKey != null) {
+                            finalUrl = com.samechat37.utils.EncryptionManager.encrypt(downloadUrl, receiverPublicKey, myPubKey);
+                        }
+
+                        Message message = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, finalUrl, 0);
+                        chatRef.child(messageId).setValue(message);
+                        tempFile.delete();
+                    });
+                }
+
+                @Override
+                public void onProgress(int progress) {
+                    runOnUiThread(() -> adapter.updateUploadProgress(messageId, progress));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        adapter.removeUploadProgress(messageId);
+                        messageList.remove(pendingMsg);
+                        adapter.notifyDataSetChanged();
+                        android.util.Log.e("ChatActivity", "GitHub Media Upload failed", e);
+                        android.widget.Toast.makeText(ChatActivity.this, "Failed to upload " + type, android.widget.Toast.LENGTH_SHORT).show();
+                        tempFile.delete();
+                    });
+                }
+            });
+        } catch (IOException e) {
+            android.util.Log.e("ChatActivity", "File preparation failed", e);
+        }
+    }
+
+    private void startRecording() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.RECORD_AUDIO}, 200);
+            return;
+        }
+
+        File cacheDir = getExternalCacheDir();
+        if (cacheDir == null) cacheDir = getCacheDir();
+        audioPath = cacheDir.getAbsolutePath() + "/temp_audio.3gp";
+        
+        mediaRecorder = new android.media.MediaRecorder();
+        mediaRecorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
+        mediaRecorder.setOutputFormat(android.media.MediaRecorder.OutputFormat.THREE_GPP);
+        mediaRecorder.setAudioEncoder(android.media.MediaRecorder.AudioEncoder.AMR_NB);
+        mediaRecorder.setOutputFile(audioPath);
+
+        try {
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+            isRecording = true;
+            recordStartTime = System.currentTimeMillis();
+            android.widget.Toast.makeText(this, "Recording...", android.widget.Toast.LENGTH_SHORT).show();
+        } catch (IOException e) {
+            android.util.Log.e("ChatActivity", "Recording failed", e);
+        }
+    }
+
+    private void stopRecordingAndSend() {
+        if (!isRecording || mediaRecorder == null) return;
+
+        try {
+            mediaRecorder.stop();
+            mediaRecorder.release();
+            mediaRecorder = null;
+            isRecording = false;
+
+            long duration = (System.currentTimeMillis() - recordStartTime) / 1000;
+            if (duration < 1) {
+                File tempFile = new File(audioPath);
+                if (tempFile.exists()) tempFile.delete();
+                android.widget.Toast.makeText(this, "Message too short", android.widget.Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            uploadVoiceMessage(audioPath, (int) duration);
+        } catch (Exception e) {
+            android.util.Log.e("ChatActivity", "Stop recording failed", e);
+        }
+    }
+
+    private void uploadVoiceMessage(String path, int duration) {
+        String messageId = chatRef.push().getKey();
+        if (messageId == null) return;
+
+        // Add placeholder message locally
+        Message pendingMsg = new Message(messageId, senderId, receiverId, "Voice message", System.currentTimeMillis(), "voice", "local:" + path, duration);
+        messageList.add(pendingMsg);
+        adapter.notifyItemInserted(messageList.size() - 1);
+        chatRecycler.smoothScrollToPosition(messageList.size() - 1);
+
+        String fileName = messageId + ".3gp";
+        com.samechat37.utils.GitHubStorage.uploadFile(path, "voice_messages", fileName, new com.samechat37.utils.GitHubStorage.UploadCallback() {
+            @Override
+            public void onSuccess(String downloadUrl) {
+                runOnUiThread(() -> {
+                    adapter.removeUploadProgress(messageId);
+                    
+                    String finalUrl = downloadUrl;
+                    String myPubKey = com.samechat37.utils.EncryptionManager.getMyPublicKey(ChatActivity.this);
+                    if (receiverPublicKey != null && myPubKey != null) {
+                        finalUrl = com.samechat37.utils.EncryptionManager.encrypt(downloadUrl, receiverPublicKey, myPubKey);
+                    }
+
+                    Message message = new Message(messageId, senderId, receiverId, "Voice message", System.currentTimeMillis(), "voice", finalUrl, duration);
+                    chatRef.child(messageId).setValue(message);
+                    
+                    File tempFile = new File(path);
+                    if (tempFile.exists()) tempFile.delete();
+                });
+            }
+
+            @Override
+            public void onProgress(int progress) {
+                runOnUiThread(() -> adapter.updateUploadProgress(messageId, progress));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                runOnUiThread(() -> {
+                    adapter.removeUploadProgress(messageId);
+                    messageList.remove(pendingMsg);
+                    adapter.notifyDataSetChanged();
+                    android.util.Log.e("ChatActivity", "GitHub Upload failed", e);
+                    android.widget.Toast.makeText(ChatActivity.this, "Failed to upload audio to GitHub", android.widget.Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
     }
 
     private void startCall(boolean isVideo) {
@@ -92,6 +346,7 @@ public class ChatActivity extends BaseActivity {
                         if (snapshot.exists()) {
                             Boolean isOnline = snapshot.child("online").getValue(Boolean.class);
                             Long lastSeen = snapshot.child("lastSeen").getValue(Long.class);
+                            receiverPublicKey = snapshot.child("publicKey").getValue(String.class);
 
                             if (isOnline != null && isOnline) {
                                 toolbarStatus.setText("Online");
@@ -170,6 +425,14 @@ public class ChatActivity extends BaseActivity {
         messageListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
+                // Keep track of pending uploads
+                List<Message> pendingUploads = new ArrayList<>();
+                for (Message m : messageList) {
+                    if (m.getMediaUrl() != null && m.getMediaUrl().startsWith("local:")) {
+                        pendingUploads.add(m);
+                    }
+                }
+
                 messageList.clear();
                 for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
                     Message message = dataSnapshot.getValue(Message.class);
@@ -181,6 +444,21 @@ public class ChatActivity extends BaseActivity {
                         }
                     }
                 }
+                
+                // Re-add pending uploads only if they are not already in the list (e.g. upload just finished)
+                for (Message pending : pendingUploads) {
+                    boolean alreadyExists = false;
+                    for (Message m : messageList) {
+                        if (m.getMessageId() != null && m.getMessageId().equals(pending.getMessageId())) {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyExists) {
+                        messageList.add(pending);
+                    }
+                }
+
                 adapter.notifyDataSetChanged();
                 if (!messageList.isEmpty()) {
                     chatRecycler.smoothScrollToPosition(messageList.size() - 1);
@@ -269,7 +547,14 @@ public class ChatActivity extends BaseActivity {
         if (TextUtils.isEmpty(text)) return;
 
         String messageId = chatRef.push().getKey();
-        Message message = new Message(messageId, senderId, receiverId, text, System.currentTimeMillis());
+        
+        String encryptedText = text;
+        String myPubKey = com.samechat37.utils.EncryptionManager.getMyPublicKey(this);
+        if (receiverPublicKey != null && myPubKey != null) {
+            encryptedText = com.samechat37.utils.EncryptionManager.encrypt(text, receiverPublicKey, myPubKey);
+        }
+        
+        Message message = new Message(messageId, senderId, receiverId, encryptedText, System.currentTimeMillis());
 
         if (messageId != null) {
             chatRef.child(messageId).setValue(message);

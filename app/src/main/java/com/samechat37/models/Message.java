@@ -7,65 +7,54 @@ public class Message {
     private String text;
     private long timestamp;
     private boolean seen;
+    private String type; // "text" or "voice"
+    private String mediaUrl;
+    private int duration;
 
     public Message() {
         // Required for Firebase
     }
 
     public Message(String messageId, String senderId, String receiverId, String text, long timestamp) {
+        this(messageId, senderId, receiverId, text, timestamp, "text", null, 0);
+    }
+
+    public Message(String messageId, String senderId, String receiverId, String text, long timestamp, String type, String mediaUrl, int duration) {
         this.messageId = messageId;
         this.senderId = senderId;
         this.receiverId = receiverId;
         this.text = text;
         this.timestamp = timestamp;
         this.seen = false;
+        this.type = type;
+        this.mediaUrl = mediaUrl;
+        this.duration = duration;
     }
 
-    public String getMessageId() {
-        return messageId;
-    }
+    public String getMessageId() { return messageId; }
+    public void setMessageId(String messageId) { this.messageId = messageId; }
 
-    public void setMessageId(String messageId) {
-        this.messageId = messageId;
-    }
+    public String getSenderId() { return senderId; }
+    public void setSenderId(String senderId) { this.senderId = senderId; }
 
-    public String getSenderId() {
-        return senderId;
-    }
+    public String getReceiverId() { return receiverId; }
+    public void setReceiverId(String receiverId) { this.receiverId = receiverId; }
 
-    public void setSenderId(String senderId) {
-        this.senderId = senderId;
-    }
+    public String getText() { return text; }
+    public void setText(String text) { this.text = text; }
 
-    public String getReceiverId() {
-        return receiverId;
-    }
+    public long getTimestamp() { return timestamp; }
+    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
 
-    public void setReceiverId(String receiverId) {
-        this.receiverId = receiverId;
-    }
+    public boolean isSeen() { return seen; }
+    public void setSeen(boolean seen) { this.seen = seen; }
 
-    public String getText() {
-        return text;
-    }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
 
-    public void setText(String text) {
-        this.text = text;
-    }
+    public String getMediaUrl() { return mediaUrl; }
+    public void setMediaUrl(String mediaUrl) { this.mediaUrl = mediaUrl; }
 
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(long timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public boolean isSeen() {
-        return seen;
-    }
-
-    public void setSeen(boolean seen) {
-        this.seen = seen;
-    }
+    public int getDuration() { return duration; }
+    public void setDuration(int duration) { this.duration = duration; }
 }
