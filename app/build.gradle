@@ -27,7 +27,8 @@ android {
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         
-        buildConfigField "String", "GITHUB_TOKEN", "\"${localProperties.getProperty('GITHUB_TOKEN') ?: System.getenv('SAMECHAT_GH_TOKEN') ?: ''}\""
+        def githubToken = (localProperties.getProperty('GITHUB_TOKEN') ?: System.getenv('SAMECHAT_GH_TOKEN') ?: '').trim()
+        buildConfigField "String", "GITHUB_TOKEN", "\"${githubToken}\""
     }
 
     signingConfigs {
