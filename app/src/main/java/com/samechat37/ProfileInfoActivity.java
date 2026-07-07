@@ -19,7 +19,12 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.samechat37.databinding.ActivityProfileInfoBinding;
 
+import com.samechat37.adapters.MediaAdapter;
+import com.samechat37.models.Message;
+
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class ProfileInfoActivity extends BaseActivity {
@@ -27,6 +32,8 @@ public class ProfileInfoActivity extends BaseActivity {
     private ActivityProfileInfoBinding binding;
     private String targetUid;
     private boolean isOwnProfile;
+    private List<Message> mediaList = new ArrayList<>();
+    private MediaAdapter mediaAdapter;
 
     private final androidx.activity.result.ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
@@ -73,6 +80,77 @@ public class ProfileInfoActivity extends BaseActivity {
         loadUserProfile();
         setupClickListeners();
         setupLongClickListeners();
+
+        if (!isOwnProfile) {
+            setupMediaRecyclerView();
+            loadSharedMedia();
+        } else {
+            binding.mediaCard.setVisibility(android.view.View.GONE);
+        }
+    }
+
+    private void setupMediaRecyclerView() {
+        mediaAdapter = new MediaAdapter(this, mediaList, message -> {
+            // Handle media click (e.g., open full screen)
+            // For now, just toast the type
+            Toast.makeText(this, "Opening " + message.getType(), Toast.LENGTH_SHORT).show();
+        });
+        binding.mediaRecycler.setAdapter(mediaAdapter);
+    }
+
+    private void loadSharedMedia() {
+        String myUid = FirebaseAuth.getInstance().getUid();
+        if (myUid == null || targetUid == null) return;
+
+        String chatId = myUid.compareTo(targetUid) < 0
+                ? myUid + "_" + targetUid
+                : targetUid + "_" + myUid;
+
+        FirebaseDatabase.getInstance().getReference("chats").child(chatId)
+                .addValueEventListener(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        if (binding == null) return;
+                        mediaList.clear();
+                        for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                            Message message = dataSnapshot.getValue(Message.class);
+                            if (message != null && ("image".equalsIgnoreCase(message.getType()) || "video".equalsIgnoreCase(message.getType()))) {
+                                // Decrypt mediaUrl if it's encrypted
+                                decryptMessageMedia(message);
+                                mediaList.add(message);
+                            }
+                        }
+                        
+                        mediaAdapter.notifyDataSetChanged();
+                        binding.mediaCount.setText(String.valueOf(mediaList.size()));
+                        
+                        if (mediaList.isEmpty()) {
+                            binding.noMediaText.setVisibility(android.view.View.VISIBLE);
+                            binding.mediaRecycler.setVisibility(android.view.View.GONE);
+                        } else {
+                            binding.noMediaText.setVisibility(android.view.View.GONE);
+                            binding.mediaRecycler.setVisibility(android.view.View.VISIBLE);
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
+    }
+
+    private void decryptMessageMedia(Message message) {
+        String mediaInfo = message.getMediaUrl();
+        if (mediaInfo == null) return;
+
+        try {
+            boolean isMe = message.getSenderId().equals(FirebaseAuth.getInstance().getUid());
+            String decrypted = com.samechat37.utils.EncryptionManager.decrypt(mediaInfo, this, isMe);
+            if (decrypted != null) {
+                message.setMediaUrl(decrypted);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private void setupLongClickListeners() {
