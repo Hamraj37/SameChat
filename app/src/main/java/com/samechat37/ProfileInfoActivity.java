@@ -72,6 +72,21 @@ public class ProfileInfoActivity extends BaseActivity {
 
         loadUserProfile();
         setupClickListeners();
+        setupLongClickListeners();
+    }
+
+    private void setupLongClickListeners() {
+        binding.profileHandle.setOnLongClickListener(v -> {
+            String handleText = binding.profileHandle.getText().toString();
+            if (!handleText.isEmpty()) {
+                android.content.ClipboardManager clipboard = (android.content.ClipboardManager) getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+                android.content.ClipData clip = android.content.ClipData.newPlainText("Username", handleText);
+                clipboard.setPrimaryClip(clip);
+                Toast.makeText(this, "Username copied to clipboard", Toast.LENGTH_SHORT).show();
+                return true;
+            }
+            return false;
+        });
     }
 
     private void checkFriendStatus() {
