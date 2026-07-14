@@ -10,6 +10,7 @@ public class User {
     private boolean online;
     private long lastSeen;
     private String publicKey;
+    private String bio;
 
     public User() {
         // Default constructor required for calls to DataSnapshot.getValue(User.class)
@@ -94,5 +95,13 @@ public class User {
 
     public void setPublicKey(String publicKey) {
         this.publicKey = publicKey;
+    }
+
+    public String getBio() {
+        return bio;
+    }
+
+    public void setBio(String bio) {
+        this.bio = bio;
     }
 }
