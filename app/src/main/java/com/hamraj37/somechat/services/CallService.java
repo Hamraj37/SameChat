@@ -54,7 +54,7 @@ public class CallService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         createNotificationChannels();
         Notification notification = new NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
-                .setContentTitle("SameChat is running")
+                .setContentTitle(getString(R.string.app_name) + " is running")
                 .setContentText("Listening for calls and messages...")
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setPriority(NotificationCompat.PRIORITY_MIN)
@@ -324,7 +324,7 @@ public class CallService extends Service {
                     "Background Service",
                     NotificationManager.IMPORTANCE_MIN
             );
-            serviceChannel.setDescription("Required for SameChat to receive calls in the background");
+            serviceChannel.setDescription("Required for " + getString(R.string.app_name) + " to receive calls in the background");
             serviceChannel.setShowBadge(false);
             manager.createNotificationChannel(serviceChannel);
         }
