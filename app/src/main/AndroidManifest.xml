@@ -103,6 +103,11 @@
             android:theme="@style/Theme.SomeChat.NoActionBar"
             android:screenOrientation="sensor" />
         <activity
+            android:name=".StatusPreviewActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SomeChat.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name=".ViewStatusActivity"
             android:exported="false"
             android:theme="@style/Theme.SomeChat.NoActionBar" />

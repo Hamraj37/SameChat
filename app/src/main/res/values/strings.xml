@@ -81,4 +81,7 @@
     <string name="removed_from_highlight">Removed from highlight</string>
     <string name="failed_to_remove">Failed to remove</string>
     <string name="status_deleted">Status deleted</string>
+    <string name="add_a_caption">Add a caption...</string>
+    <string name="post_status">Post Status</string>
+    <string name="uploading_status">Uploading status</string>
 </resources>

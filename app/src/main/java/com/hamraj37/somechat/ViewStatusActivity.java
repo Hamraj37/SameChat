@@ -65,6 +65,7 @@ public class ViewStatusActivity extends BaseActivity {
     private TextView tvLikesCount;
     private ImageView btnMore;
     private ImageView ivHighlightedStar;
+    private TextView tvCaption;
     private boolean isStatusLoadedFromDb = false;
     
     private final Handler handler = new Handler();
@@ -125,6 +126,7 @@ public class ViewStatusActivity extends BaseActivity {
         tvLikesCount = findViewById(R.id.tv_likes_count);
         btnMore = findViewById(R.id.btn_more);
         ivHighlightedStar = findViewById(R.id.iv_highlighted_star);
+        tvCaption = findViewById(R.id.tv_caption);
 
         currentUserId = FirebaseAuth.getInstance().getUid();
         
@@ -677,6 +679,13 @@ public class ViewStatusActivity extends BaseActivity {
             showContent();
         } else {
             loadMedia(item);
+        }
+
+        if (item.getCaption() != null && !item.getCaption().isEmpty() && !"text".equals(item.getType())) {
+            tvCaption.setVisibility(View.VISIBLE);
+            tvCaption.setText(item.getCaption());
+        } else {
+            tvCaption.setVisibility(View.GONE);
         }
 
         if (currentUserId != null && currentUserId.equals(status.getUserId())) {

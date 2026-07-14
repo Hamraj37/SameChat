@@ -6,7 +6,10 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
+import android.widget.VideoView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -259,59 +262,16 @@ public class ReflowFragment extends Fragment {
             }
         }
 
-        String type = isVideo ? "video" : "image";
-        String extension = isVideo ? ".mp4" : ".jpg";
-
-        com.google.android.material.progressindicator.LinearProgressIndicator progressIndicator = new com.google.android.material.progressindicator.LinearProgressIndicator(getContext());
-        progressIndicator.setIndeterminate(false);
-        progressIndicator.setMax(100);
-        
-        androidx.appcompat.app.AlertDialog progressDialog = new com.google.android.material.dialog.MaterialAlertDialogBuilder(getContext())
-                .setTitle("Uploading " + type)
-                .setMessage("Please wait...")
-                .setView(progressIndicator)
-                .setCancelable(false)
-                .show();
-
-        try {
-            java.io.InputStream is = getContext().getContentResolver().openInputStream(uri);
-            if (is == null) {
-                progressDialog.dismiss();
-                return;
-            }
-            byte[] bytes = new byte[is.available()];
-            is.read(bytes);
-            is.close();
-
-            String fileName = currentUserId + "_" + System.currentTimeMillis() + extension;
-            GitHubStorage.uploadBytes(bytes, "statuses", fileName, new GitHubStorage.UploadCallback() {
-                @Override
-                public void onSuccess(String downloadUrl) {
-                    progressDialog.dismiss();
-                    saveStatusToFirebase(downloadUrl, type, "");
-                }
-
-                @Override
-                public void onProgress(int progress) {
-                    if (getActivity() != null) {
-                        getActivity().runOnUiThread(() -> {
-                            progressIndicator.setProgress(progress);
-                            progressDialog.setMessage("Uploading: " + progress + "%");
-                        });
-                    }
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    progressDialog.dismiss();
-                    Toast.makeText(getContext(), "Failed to upload status", Toast.LENGTH_SHORT).show();
-                }
-            });
-        } catch (Exception e) {
-            progressDialog.dismiss();
-            e.printStackTrace();
-        }
+        showStatusPreviewDialog(uri, isVideo);
     }
+
+    private void showStatusPreviewDialog(Uri uri, boolean isVideo) {
+        Intent intent = new Intent(getContext(), com.hamraj37.somechat.StatusPreviewActivity.class);
+        intent.putExtra("uri", uri);
+        intent.putExtra("type", isVideo ? "video" : "image");
+        startActivity(intent);
+    }
+
 
     private void saveStatusToFirebase(String mediaUrl, String type, String caption) {
         DatabaseReference myStatusRef = FirebaseDatabase.getInstance().getReference("statuses").child(currentUserId);
