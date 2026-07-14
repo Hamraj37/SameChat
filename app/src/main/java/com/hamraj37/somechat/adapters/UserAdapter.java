@@ -23,6 +23,7 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final OnUserClickListener listener;
     private boolean showActions = false;
     private java.util.Map<String, Boolean> adminsMap = null;
+    private java.util.Map<String, Boolean> likesMap = null;
 
     public interface OnUserClickListener {
         void onUserClick(User user);
@@ -41,6 +42,11 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void setAdminsMap(java.util.Map<String, Boolean> adminsMap) {
         this.adminsMap = adminsMap;
+        notifyDataSetChanged();
+    }
+
+    public void setLikesMap(java.util.Map<String, Boolean> likesMap) {
+        this.likesMap = likesMap;
         notifyDataSetChanged();
     }
 
@@ -114,6 +120,14 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             userHolder.avatar.setImageResource(R.mipmap.ic_launcher_round);
         }
 
+        if (userHolder.likeIcon != null) {
+            if (likesMap != null && Boolean.TRUE.equals(likesMap.get(user.getUid()))) {
+                userHolder.likeIcon.setVisibility(View.VISIBLE);
+            } else {
+                userHolder.likeIcon.setVisibility(View.GONE);
+            }
+        }
+
         userHolder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onUserClick(user);
@@ -152,6 +166,7 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         TextView username;
         TextView email;
         TextView adminBadge;
+        ImageView likeIcon;
 
         public UserViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -160,6 +175,7 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             username = itemView.findViewById(R.id.user_username);
             email = itemView.findViewById(R.id.user_email);
             adminBadge = itemView.findViewById(R.id.admin_badge);
+            likeIcon = itemView.findViewById(R.id.status_like_icon);
         }
     }
 }

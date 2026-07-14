@@ -16,25 +16,15 @@
         android:background="?attr/colorOutlineVariant"
         android:alpha="0.5" />
 
-    <com.google.android.material.tabs.TabLayout
-        android:id="@+id/insight_tabs"
+    <TextView
+        android:id="@+id/insight_title"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:tabIndicatorFullWidth="false"
-        app:tabSelectedTextColor="?attr/colorPrimary"
-        app:tabTextColor="?attr/colorOnSurfaceVariant">
-
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Views" />
-
-        <com.google.android.material.tabs.TabItem
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Likes" />
-
-    </com.google.android.material.tabs.TabLayout>
+        android:paddingHorizontal="16dp"
+        android:paddingBottom="8dp"
+        android:text="Views"
+        android:textAppearance="?attr/textAppearanceTitleLarge"
+        android:textStyle="bold" />
 
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/insights_recycler"

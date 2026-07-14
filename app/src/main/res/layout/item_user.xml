@@ -84,4 +84,14 @@
 
     </LinearLayout>
 
+    <ImageView
+        android:id="@+id/status_like_icon"
+        android:layout_width="24dp"
+        android:layout_height="24dp"
+        android:layout_marginStart="8dp"
+        android:src="@drawable/ic_heart_filled"
+        app:tint="#FFFF4444"
+        android:visibility="gone"
+        tools:visibility="visible" />
+
 </LinearLayout>

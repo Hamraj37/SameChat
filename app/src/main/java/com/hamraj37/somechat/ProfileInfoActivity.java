@@ -2,8 +2,15 @@ package com.hamraj37.somechat;
 
 import android.content.Intent;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.EditText;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
+
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -26,6 +33,7 @@ import com.hamraj37.somechat.databinding.ActivityProfileInfoBinding;
 import com.hamraj37.somechat.models.Highlight;
 import com.hamraj37.somechat.models.Message;
 import com.hamraj37.somechat.models.Status;
+import com.hamraj37.somechat.models.User;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -77,13 +85,13 @@ public class ProfileInfoActivity extends BaseActivity {
         isOwnProfile = targetUid != null && targetUid.equals(myUid);
 
         if (!isOwnProfile) {
-            binding.settingsButton.setVisibility(android.view.View.GONE);
-            binding.editProfileImageFab.setVisibility(android.view.View.GONE);
-            binding.editCoverImageFab.setVisibility(android.view.View.GONE);
+            binding.settingsButton.setVisibility(View.GONE);
+            binding.editProfileImageFab.setVisibility(View.GONE);
+            binding.editCoverImageFab.setVisibility(View.GONE);
             checkFriendshipStatus();
         } else {
-            binding.editProfileImageFab.setVisibility(android.view.View.VISIBLE);
-            binding.editCoverImageFab.setVisibility(android.view.View.VISIBLE);
+            binding.editProfileImageFab.setVisibility(View.VISIBLE);
+            binding.editCoverImageFab.setVisibility(View.VISIBLE);
         }
 
         loadUserProfile();
@@ -96,8 +104,8 @@ public class ProfileInfoActivity extends BaseActivity {
             setupPinnedMessagesRecyclerView();
             loadSharedMedia();
         } else {
-            binding.mediaCard.setVisibility(android.view.View.GONE);
-            binding.pinnedMessagesCard.setVisibility(android.view.View.GONE);
+            binding.mediaCard.setVisibility(View.GONE);
+            binding.pinnedMessagesCard.setVisibility(View.GONE);
         }
     }
 
@@ -164,7 +172,7 @@ public class ProfileInfoActivity extends BaseActivity {
                             if (h != null) highlightList.add(h);
                         }
                         highlightAdapter.notifyDataSetChanged();
-                        binding.highlightsRecycler.setVisibility(highlightList.isEmpty() ? android.view.View.GONE : android.view.View.VISIBLE);
+                        binding.highlightsRecycler.setVisibility(highlightList.isEmpty() ? View.GONE : View.VISIBLE);
                     }
 
                     @Override
@@ -228,22 +236,22 @@ public class ProfileInfoActivity extends BaseActivity {
                         binding.mediaCount.setText(String.valueOf(mediaList.size()));
                         
                         if (mediaList.isEmpty()) {
-                            binding.noMediaText.setVisibility(android.view.View.VISIBLE);
-                            binding.mediaRecycler.setVisibility(android.view.View.GONE);
+                            binding.noMediaText.setVisibility(View.VISIBLE);
+                            binding.mediaRecycler.setVisibility(View.GONE);
                         } else {
-                            binding.noMediaText.setVisibility(android.view.View.GONE);
-                            binding.mediaRecycler.setVisibility(android.view.View.VISIBLE);
+                            binding.noMediaText.setVisibility(View.GONE);
+                            binding.mediaRecycler.setVisibility(View.VISIBLE);
                         }
 
                         pinnedMessagesList.clear();
                         pinnedMessagesList.addAll(newPinnedList);
                         pinnedAdapter.notifyDataSetChanged();
                         if (pinnedMessagesList.isEmpty()) {
-                            binding.noPinnedMessagesText.setVisibility(android.view.View.VISIBLE);
-                            binding.pinnedMessagesRecycler.setVisibility(android.view.View.GONE);
+                            binding.noPinnedMessagesText.setVisibility(View.VISIBLE);
+                            binding.pinnedMessagesRecycler.setVisibility(View.GONE);
                         } else {
-                            binding.noPinnedMessagesText.setVisibility(android.view.View.GONE);
-                            binding.pinnedMessagesRecycler.setVisibility(android.view.View.VISIBLE);
+                            binding.noPinnedMessagesText.setVisibility(View.GONE);
+                            binding.pinnedMessagesRecycler.setVisibility(View.VISIBLE);
                         }
                     }
 
@@ -353,7 +361,7 @@ public class ProfileInfoActivity extends BaseActivity {
     }
 
     private void showUnfriendUI() {
-        binding.friendActionButton.setVisibility(android.view.View.VISIBLE);
+        binding.friendActionButton.setVisibility(View.VISIBLE);
         binding.friendActionButton.setText(R.string.unfriend);
         binding.friendActionButton.setIconResource(android.R.drawable.ic_menu_delete);
         
@@ -367,7 +375,7 @@ public class ProfileInfoActivity extends BaseActivity {
     }
 
     private void showPendingUI() {
-        binding.friendActionButton.setVisibility(android.view.View.VISIBLE);
+        binding.friendActionButton.setVisibility(View.VISIBLE);
         binding.friendActionButton.setText(R.string.cancel_request);
         binding.friendActionButton.setIconResource(android.R.drawable.ic_menu_close_clear_cancel);
         
@@ -392,7 +400,7 @@ public class ProfileInfoActivity extends BaseActivity {
     }
 
     private void showAddFriendUI() {
-        binding.friendActionButton.setVisibility(android.view.View.VISIBLE);
+        binding.friendActionButton.setVisibility(View.VISIBLE);
         binding.friendActionButton.setText(R.string.add_friend);
         binding.friendActionButton.setIconResource(android.R.drawable.ic_input_add);
         
@@ -406,7 +414,7 @@ public class ProfileInfoActivity extends BaseActivity {
     }
 
     private void showAcceptUI() {
-        binding.friendActionButton.setVisibility(android.view.View.VISIBLE);
+        binding.friendActionButton.setVisibility(View.VISIBLE);
         binding.friendActionButton.setText("Accept Request");
         binding.friendActionButton.setIconResource(android.R.drawable.checkbox_on_background);
         
@@ -450,7 +458,7 @@ public class ProfileInfoActivity extends BaseActivity {
     }
 
     private void showProfileSettingsDialog() {
-        String[] options = {getString(R.string.edit_name), getString(R.string.edit_handle), getString(R.string.change_bio), getString(R.string.change_profile_photo)};
+        String[] options = {getString(R.string.edit_name), getString(R.string.edit_handle), getString(R.string.change_bio), "Edit Websites", getString(R.string.change_profile_photo)};
         new AlertDialog.Builder(this)
                 .setTitle("Profile Settings")
                 .setItems(options, (dialog, which) -> {
@@ -465,6 +473,9 @@ public class ProfileInfoActivity extends BaseActivity {
                             showEditBioDialog();
                             break;
                         case 3:
+                            showEditWebsitesDialog();
+                            break;
+                        case 4:
                             pickImageLauncher.launch("image/*");
                             break;
                     }
@@ -474,7 +485,7 @@ public class ProfileInfoActivity extends BaseActivity {
 
     private void uploadProfileImage(android.net.Uri uri, boolean isCover) {
         if (binding != null) {
-            binding.uploadProgress.setVisibility(android.view.View.VISIBLE);
+            binding.uploadProgress.setVisibility(View.VISIBLE);
             binding.uploadProgress.setProgress(0);
         }
         Toast.makeText(this, isCover ? "Uploading cover photo..." : "Uploading profile photo...", Toast.LENGTH_SHORT).show();
@@ -498,7 +509,7 @@ public class ProfileInfoActivity extends BaseActivity {
                 public void onSuccess(String downloadUrl) {
                     runOnUiThread(() -> {
                         if (binding != null) {
-                            binding.uploadProgress.setVisibility(android.view.View.GONE);
+                            binding.uploadProgress.setVisibility(View.GONE);
                         }
                         String node = isCover ? "coverUrl" : "photoUrl";
                         FirebaseDatabase.getInstance().getReference("users").child(targetUid).child(node).setValue(downloadUrl)
@@ -530,7 +541,7 @@ public class ProfileInfoActivity extends BaseActivity {
                 public void onFailure(Exception e) {
                     runOnUiThread(() -> {
                         if (binding != null) {
-                            binding.uploadProgress.setVisibility(android.view.View.GONE);
+                            binding.uploadProgress.setVisibility(View.GONE);
                         }
                         Toast.makeText(ProfileInfoActivity.this, "Upload failed: " + e.getMessage(), Toast.LENGTH_SHORT).show();
                     });
@@ -613,6 +624,128 @@ public class ProfileInfoActivity extends BaseActivity {
         builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
 
         builder.show();
+    }
+
+    private void showEditWebsitesDialog() {
+        FirebaseDatabase.getInstance().getReference("users").child(targetUid).child("websites")
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(@NonNull DataSnapshot snapshot) {
+                        List<User.Website> currentWebsites = new ArrayList<>();
+                        for (DataSnapshot ds : snapshot.getChildren()) {
+                            Object value = ds.getValue();
+                            if (value instanceof String) {
+                                String url = (String) value;
+                                currentWebsites.add(new User.Website(url, url));
+                            } else {
+                                User.Website w = ds.getValue(User.Website.class);
+                                if (w != null) currentWebsites.add(w);
+                            }
+                        }
+
+                        LinearLayout container = new LinearLayout(ProfileInfoActivity.this);
+                        container.setOrientation(LinearLayout.VERTICAL);
+                        int padding = (int) (16 * getResources().getDisplayMetrics().density);
+                        container.setPadding(padding, padding, padding, padding);
+
+                        List<EditText> urlInputs = new ArrayList<>();
+                        
+                        for (int i = 0; i < 5; i++) {
+                            EditText urlInput = new EditText(ProfileInfoActivity.this);
+                            urlInput.setHint("Website URL " + (i + 1));
+                            
+                            if (i < currentWebsites.size()) {
+                                urlInput.setText(currentWebsites.get(i).getUrl());
+                            }
+                            
+                            container.addView(urlInput);
+                            urlInputs.add(urlInput);
+                        }
+
+                        android.widget.ScrollView scrollView = new android.widget.ScrollView(ProfileInfoActivity.this);
+                        scrollView.addView(container);
+
+                        new AlertDialog.Builder(ProfileInfoActivity.this)
+                                .setTitle("Edit Websites (Max 5)")
+                                .setView(scrollView)
+                                .setPositiveButton("Save", (dialog, which) -> {
+                                    List<String> urls = new ArrayList<>();
+                                    for (EditText input : urlInputs) {
+                                        String url = input.getText().toString().trim();
+                                        if (!url.isEmpty()) {
+                                            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                                                url = "https://" + url;
+                                            }
+                                            urls.add(url);
+                                        }
+                                    }
+                                    saveWebsitesWithAutoTitles(urls);
+                                })
+                                .setNegativeButton("Cancel", null)
+                                .show();
+                    }
+
+                    @Override
+                    public void onCancelled(@NonNull DatabaseError error) {}
+                });
+    }
+
+    private void saveWebsitesWithAutoTitles(List<String> urls) {
+        if (urls == null || urls.isEmpty()) {
+            updateWebsites(new ArrayList<>());
+            return;
+        }
+
+        AlertDialog progressDialog = new MaterialAlertDialogBuilder(this)
+                .setTitle("Updating Websites")
+                .setMessage("Fetching titles...")
+                .setCancelable(false)
+                .show();
+
+        new Thread(() -> {
+            List<User.Website> newWebsites = new ArrayList<>();
+            for (String url : urls) {
+                String title = "";
+                String faviconUrl = null;
+                try {
+                    String host = new java.net.URL(url).getHost();
+                    faviconUrl = "https://www.google.com/s2/favicons?sz=64&domain=" + host;
+                    
+                    Document doc = Jsoup.connect(url).timeout(5000).get();
+                    title = doc.title();
+                    
+                    // If fetched title is just the domain or empty, use a clean version of host
+                    String cleanHost = host.startsWith("www.") ? host.substring(4) : host;
+                    if (title.isEmpty() || title.equalsIgnoreCase(host) || title.equalsIgnoreCase(cleanHost)) {
+                        int dotIndex = cleanHost.indexOf('.');
+                        title = dotIndex > 0 ? cleanHost.substring(0, dotIndex) : cleanHost;
+                        title = title.substring(0, 1).toUpperCase() + title.substring(1);
+                    }
+                } catch (Exception e) {
+                    try {
+                        String host = new java.net.URL(url).getHost();
+                        if (host.startsWith("www.")) host = host.substring(4);
+                        int dotIndex = host.indexOf('.');
+                        title = dotIndex > 0 ? host.substring(0, dotIndex) : host;
+                        title = title.substring(0, 1).toUpperCase() + title.substring(1);
+                    } catch (Exception ignored) {
+                        title = url;
+                    }
+                }
+                
+                newWebsites.add(new User.Website(title, url, faviconUrl));
+            }
+
+            runOnUiThread(() -> {
+                progressDialog.dismiss();
+                updateWebsites(newWebsites);
+            });
+        }).start();
+    }
+
+    private void updateWebsites(List<User.Website> websites) {
+        FirebaseDatabase.getInstance().getReference("users").child(targetUid).child("websites").setValue(websites)
+                .addOnSuccessListener(aVoid -> Toast.makeText(ProfileInfoActivity.this, "Websites updated", Toast.LENGTH_SHORT).show());
     }
 
     private void updateBio(String newBio) {
@@ -743,10 +876,10 @@ public class ProfileInfoActivity extends BaseActivity {
                                 }
 
                                 if (isOwnProfile && email != null) {
-                                    binding.profileEmailHeader.setVisibility(android.view.View.VISIBLE);
+                                    binding.profileEmailHeader.setVisibility(View.VISIBLE);
                                     binding.profileEmailHeader.setText(email);
                                 } else {
-                                    binding.profileEmailHeader.setVisibility(android.view.View.GONE);
+                                    binding.profileEmailHeader.setVisibility(View.GONE);
                                 }
 
                                 if (photoUrl != null && !photoUrl.isEmpty()) {
@@ -762,12 +895,106 @@ public class ProfileInfoActivity extends BaseActivity {
                                             .centerCrop()
                                             .into(binding.coverImage);
                                 }
+
+                                List<User.Website> websites = new ArrayList<>();
+                                DataSnapshot websitesSnapshot = snapshot.child("websites");
+                                for (DataSnapshot ds : websitesSnapshot.getChildren()) {
+                                    Object value = ds.getValue();
+                                    if (value instanceof String) {
+                                        // Legacy data: handle it as a Website with the URL as title too
+                                        String url = (String) value;
+                                        websites.add(new User.Website(url, url));
+                                    } else {
+                                        User.Website w = ds.getValue(User.Website.class);
+                                        if (w != null) websites.add(w);
+                                    }
+                                }
+                                displayWebsites(websites);
                             }
                         }
 
                         @Override
                         public void onCancelled(@NonNull DatabaseError error) {}
                     });
+        }
+    }
+
+    private void displayWebsites(List<User.Website> websites) {
+        binding.websitesContainer.removeAllViews();
+        if (websites == null || websites.isEmpty()) {
+            binding.websitesContainer.setVisibility(View.GONE);
+            return;
+        }
+
+        binding.websitesContainer.setVisibility(View.VISIBLE);
+        for (User.Website website : websites) {
+            com.google.android.material.card.MaterialCardView card = new com.google.android.material.card.MaterialCardView(this);
+            LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, 
+                    LinearLayout.LayoutParams.WRAP_CONTENT);
+            cardLp.setMargins(0, 0, 0, (int)(8 * getResources().getDisplayMetrics().density));
+            card.setLayoutParams(cardLp);
+            card.setRadius((int)(16 * getResources().getDisplayMetrics().density));
+            card.setCardElevation(0);
+            card.setStrokeWidth((int)(1 * getResources().getDisplayMetrics().density));
+            card.setStrokeColor(com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorOutlineVariant, android.graphics.Color.LTGRAY));
+            card.setCardBackgroundColor(com.google.android.material.color.MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurfaceVariant, android.graphics.Color.TRANSPARENT));
+            card.setClickable(true);
+            card.setFocusable(true);
+
+            LinearLayout itemLayout = new LinearLayout(this);
+            itemLayout.setOrientation(LinearLayout.HORIZONTAL);
+            itemLayout.setGravity(android.view.Gravity.CENTER_VERTICAL);
+            itemLayout.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                    android.widget.FrameLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.FrameLayout.LayoutParams.WRAP_CONTENT));
+            int padding = (int)(12 * getResources().getDisplayMetrics().density);
+            itemLayout.setPadding(padding, padding, padding, padding);
+
+            ImageView favicon = new ImageView(this);
+            int iconSize = (int)(24 * getResources().getDisplayMetrics().density);
+            LinearLayout.LayoutParams lpIcon = new LinearLayout.LayoutParams(iconSize, iconSize);
+            lpIcon.setMarginEnd((int)(12 * getResources().getDisplayMetrics().density));
+            favicon.setLayoutParams(lpIcon);
+
+            String favUrl = website.getFaviconUrl();
+            if (favUrl == null || favUrl.isEmpty()) {
+                try {
+                    String domain = new java.net.URL(website.getUrl()).getHost();
+                    favUrl = "https://www.google.com/s2/favicons?sz=64&domain=" + domain;
+                } catch (Exception e) {
+                    favicon.setImageResource(android.R.drawable.ic_menu_share);
+                }
+            }
+
+            if (favUrl != null) {
+                Glide.with(this)
+                        .load(favUrl)
+                        .placeholder(android.R.drawable.ic_menu_share)
+                        .error(android.R.drawable.ic_menu_share)
+                        .into(favicon);
+            }
+
+            TextView textView = new TextView(this);
+            textView.setText(website.getTitle());
+            textView.setTextColor(com.google.android.material.color.MaterialColors.getColor(this, androidx.appcompat.R.attr.colorPrimary, android.graphics.Color.BLUE));
+            androidx.core.widget.TextViewCompat.setTextAppearance(textView, com.google.android.material.R.style.TextAppearance_Material3_TitleMedium);
+            textView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            textView.setSingleLine(true);
+
+            itemLayout.addView(favicon);
+            itemLayout.addView(textView);
+            card.addView(itemLayout);
+
+            card.setOnClickListener(v -> {
+                try {
+                    Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(website.getUrl()));
+                    startActivity(intent);
+                } catch (Exception e) {
+                    Toast.makeText(this, "Could not open link", Toast.LENGTH_SHORT).show();
+                }
+            });
+            binding.websitesContainer.addView(card);
         }
     }
 

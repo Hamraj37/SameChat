@@ -12,7 +12,6 @@ import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
-import com.google.android.material.tabs.TabLayout;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.FirebaseDatabase;
@@ -23,7 +22,7 @@ import com.hamraj37.somechat.models.User;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
+import java.util.Objects;
 
 public class StatusInsightsBottomSheet extends BottomSheetDialogFragment {
 
@@ -33,7 +32,7 @@ public class StatusInsightsBottomSheet extends BottomSheetDialogFragment {
     private UserAdapter adapter;
     private RecyclerView recyclerView;
     private TextView emptyText;
-    private int currentTab = 0; // 0 for Views, 1 for Likes
+    private TextView insightTitle;
 
     public static StatusInsightsBottomSheet newInstance(Map<String, Long> views, Map<String, Boolean> likes) {
         StatusInsightsBottomSheet fragment = new StatusInsightsBottomSheet();
@@ -47,26 +46,17 @@ public class StatusInsightsBottomSheet extends BottomSheetDialogFragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.layout_status_insights, container, false);
 
-        TabLayout tabLayout = view.findViewById(R.id.insight_tabs);
         recyclerView = view.findViewById(R.id.insights_recycler);
         emptyText = view.findViewById(R.id.empty_insight_text);
+        insightTitle = view.findViewById(R.id.insight_title);
 
         adapter = new UserAdapter(userList, new UserAdapter.OnUserClickListener() {
             @Override public void onUserClick(User user) {}
             @Override public void onNewGroupClick() {}
         });
+        adapter.setLikesMap(likes);
         recyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
         recyclerView.setAdapter(adapter);
-
-        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
-            @Override
-            public void onTabSelected(TabLayout.Tab tab) {
-                currentTab = tab.getPosition();
-                loadUsers();
-            }
-            @Override public void onTabUnselected(TabLayout.Tab tab) {}
-            @Override public void onTabReselected(TabLayout.Tab tab) {}
-        });
 
         loadUsers();
         return view;
@@ -76,11 +66,16 @@ public class StatusInsightsBottomSheet extends BottomSheetDialogFragment {
         userList.clear();
         adapter.notifyDataSetChanged();
         
-        Set<String> uids = (currentTab == 0) ? (views != null ? views.keySet() : null) : (likes != null ? likes.keySet() : null);
+        java.util.Set<String> uids = new java.util.HashSet<>();
+        if (views != null) uids.addAll(views.keySet());
+        if (likes != null) uids.addAll(likes.keySet());
         
-        if (uids == null || uids.isEmpty()) {
+        int viewsCount = views != null ? views.size() : 0;
+        insightTitle.setText(viewsCount + " Views");
+
+        if (uids.isEmpty()) {
             emptyText.setVisibility(View.VISIBLE);
-            emptyText.setText(currentTab == 0 ? "No views yet" : "No likes yet");
+            emptyText.setText("No views yet");
             return;
         }
 
@@ -99,6 +94,13 @@ public class StatusInsightsBottomSheet extends BottomSheetDialogFragment {
                             }
                             count[0]++;
                             if (count[0] == total) {
+                                // Sort: Liked users first, then by display name
+                                userList.sort((u1, u2) -> {
+                                    boolean l1 = likes != null && Objects.equals(likes.get(u1.getUid()), true);
+                                    boolean l2 = likes != null && Objects.equals(likes.get(u2.getUid()), true);
+                                    if (l1 != l2) return l1 ? -1 : 1;
+                                    return u1.getDisplayName().compareToIgnoreCase(u2.getDisplayName());
+                                });
                                 adapter.notifyDataSetChanged();
                             }
                         }
