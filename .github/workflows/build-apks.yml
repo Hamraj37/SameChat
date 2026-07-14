@@ -45,5 +45,6 @@ jobs:
     - name: Display Artifact URL
       run: |
         echo "### Build Artifacts 📦" >> $GITHUB_STEP_SUMMARY
-        echo "The APKs have been successfully built and are available for download:" >> $GITHUB_STEP_SUMMARY
-        echo "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "The APKs have been successfully built!" >> $GITHUB_STEP_SUMMARY
+        echo "> [!TIP]" >> $GITHUB_STEP_SUMMARY
+        echo "> You can download the latest builds from the [Artifacts Section](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#artifacts)" >> $GITHUB_STEP_SUMMARY
