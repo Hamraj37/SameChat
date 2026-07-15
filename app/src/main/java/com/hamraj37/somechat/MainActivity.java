@@ -64,7 +64,7 @@ public class MainActivity extends BaseActivity {
 
         setupCustomToolbar();
         setupBackPressedHandling();
-        
+
         if (binding.appBarMain.contentMain.fab != null) {
             binding.appBarMain.contentMain.fab.setOnClickListener(view -> {
                 Intent intent = new Intent(this, SearchUserActivity.class);
