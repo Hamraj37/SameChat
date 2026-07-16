@@ -78,6 +78,7 @@
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="13sp"
                 android:fontFamily="monospace"
+                android:textIsSelectable="true"
                 tools:text="&lt;html&gt;\n  &lt;body&gt;Hello&lt;/body&gt;\n&lt;/html&gt;" />
 
         </HorizontalScrollView>

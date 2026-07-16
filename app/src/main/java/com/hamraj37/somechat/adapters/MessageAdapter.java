@@ -457,6 +457,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         public SystemMessageViewHolder(@NonNull View itemView) {
             super(itemView);
             textMessage = itemView.findViewById(R.id.text_message);
+            if (textMessage != null) textMessage.setTextIsSelectable(true);
         }
 
         void bind(Message message) {
@@ -518,6 +519,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         int colorAttr = isSent ? com.google.android.material.R.attr.colorOnPrimary : com.google.android.material.R.attr.colorOnSurfaceVariant;
         tv.setTextColor(com.google.android.material.color.MaterialColors.getColor(container.getContext(), colorAttr, 0));
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16); 
+        tv.setTextIsSelectable(true);
         
         if (markwon != null) markwon.setMarkdown(tv, text);
         else tv.setText(text);
@@ -574,6 +576,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             super(itemView);
             contentContainer = itemView.findViewById(R.id.message_content_container);
             textMessage = itemView.findViewById(R.id.text_message);
+            if (textMessage != null) textMessage.setTextIsSelectable(true);
             textTimestamp = itemView.findViewById(R.id.text_timestamp);
             imageStatus = itemView.findViewById(R.id.image_status);
             imagePin = itemView.findViewById(R.id.image_pin);
@@ -663,6 +666,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             senderUsername = itemView.findViewById(R.id.sender_username);
             contentContainer = itemView.findViewById(R.id.message_content_container);
             textMessage = itemView.findViewById(R.id.text_message);
+            if (textMessage != null) textMessage.setTextIsSelectable(true);
             btnCopy = itemView.findViewById(R.id.btn_copy_text);
             textTimestamp = itemView.findViewById(R.id.text_timestamp);
             imagePin = itemView.findViewById(R.id.image_pin);
