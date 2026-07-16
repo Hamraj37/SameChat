@@ -46,6 +46,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private android.content.Context context;
     private OnMessageClickListener listener;
     private boolean isGroup = false;
+    private boolean isAi = false;
     private boolean showHeader = true;
     private String highlightMessageId = null;
 
@@ -75,6 +76,10 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         this.isGroup = isGroup;
         this.listener = listener;
         updateCurrentUserId();
+    }
+
+    public void setAi(boolean ai) {
+        isAi = ai;
     }
 
     public void setShowHeader(boolean showHeader) {
@@ -457,7 +462,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         public SystemMessageViewHolder(@NonNull View itemView) {
             super(itemView);
             textMessage = itemView.findViewById(R.id.text_message);
-            if (textMessage != null) textMessage.setTextIsSelectable(true);
+            if (textMessage != null) textMessage.setTextIsSelectable(isAi);
         }
 
         void bind(Message message) {
@@ -468,6 +473,13 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private void renderDynamicContent(LinearLayout container, TextView fallbackTv, String text, boolean isSent) {
         container.removeAllViews();
         if (text == null || text.isEmpty()) return;
+
+        if (!isAi) {
+            fallbackTv.setVisibility(View.VISIBLE);
+            container.setVisibility(View.GONE);
+            fallbackTv.setText(text);
+            return;
+        }
 
         // Pattern to match code blocks with optional language identifier
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("```(\\w*)\\n?([\\s\\S]*?)```");
@@ -485,9 +497,9 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
             String language = matcher.group(1).trim();
             String codeContent = matcher.group(2).trim();
-            
+
             if (language.isEmpty()) language = "code";
-            
+
             addCodePart(container, codeContent, language);
 
             lastEnd = matcher.end();
@@ -519,7 +531,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         int colorAttr = isSent ? com.google.android.material.R.attr.colorOnPrimary : com.google.android.material.R.attr.colorOnSurfaceVariant;
         tv.setTextColor(com.google.android.material.color.MaterialColors.getColor(container.getContext(), colorAttr, 0));
         tv.setTextSize(android.util.TypedValue.COMPLEX_UNIT_SP, 16); 
-        tv.setTextIsSelectable(true);
+        tv.setTextIsSelectable(isAi);
         
         if (markwon != null) markwon.setMarkdown(tv, text);
         else tv.setText(text);
@@ -576,7 +588,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             super(itemView);
             contentContainer = itemView.findViewById(R.id.message_content_container);
             textMessage = itemView.findViewById(R.id.text_message);
-            if (textMessage != null) textMessage.setTextIsSelectable(true);
+            if (textMessage != null) textMessage.setTextIsSelectable(isAi);
             textTimestamp = itemView.findViewById(R.id.text_timestamp);
             imageStatus = itemView.findViewById(R.id.image_status);
             imagePin = itemView.findViewById(R.id.image_pin);
@@ -596,7 +608,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 if (btnCopy != null) btnCopy.setVisibility(View.GONE);
             } else {
                 textMessage.setVisibility(View.VISIBLE);
-                if (markwon != null) {
+                if (markwon != null && isAi) {
                     markwon.setMarkdown(textMessage, message.getText());
                 } else {
                     textMessage.setText(message.getText());
@@ -666,7 +678,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             senderUsername = itemView.findViewById(R.id.sender_username);
             contentContainer = itemView.findViewById(R.id.message_content_container);
             textMessage = itemView.findViewById(R.id.text_message);
-            if (textMessage != null) textMessage.setTextIsSelectable(true);
+            if (textMessage != null) textMessage.setTextIsSelectable(isAi);
             btnCopy = itemView.findViewById(R.id.btn_copy_text);
             textTimestamp = itemView.findViewById(R.id.text_timestamp);
             imagePin = itemView.findViewById(R.id.image_pin);
@@ -700,7 +712,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 if (btnCopy != null) btnCopy.setVisibility(View.GONE);
             } else {
                 textMessage.setVisibility(View.VISIBLE);
-                if (markwon != null) {
+                if (markwon != null && isAi) {
                     markwon.setMarkdown(textMessage, message.getText());
                 } else {
                     textMessage.setText(message.getText());

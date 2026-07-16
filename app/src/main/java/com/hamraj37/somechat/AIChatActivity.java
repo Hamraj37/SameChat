@@ -110,6 +110,7 @@ public class AIChatActivity extends BaseActivity {
             @Override public void onSelectionChanged(int count) {}
             @Override public void onReactionClick(Message message, String emoji) {}
         });
+        adapter.setAi(true);
         adapter.setShowHeader(false);
 
         LinearLayoutManager layoutManager = new LinearLayoutManager(this);
