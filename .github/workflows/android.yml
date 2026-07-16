@@ -61,6 +61,7 @@ jobs:
         RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
         RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         SAMECHAT_GH_TOKEN: ${{ secrets.SAMECHAT_GH_TOKEN }}
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
       run: ./gradlew assembleRelease bundleRelease
 
     - name: Upload Release APK
