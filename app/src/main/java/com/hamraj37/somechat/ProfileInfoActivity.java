@@ -87,12 +87,14 @@ public class ProfileInfoActivity extends BaseActivity {
 
         if (!isOwnProfile) {
             binding.settingsButton.setVisibility(View.GONE);
+            binding.qrCodeButton.setVisibility(View.GONE);
             binding.editProfileImageFab.setVisibility(View.GONE);
             binding.editCoverImageFab.setVisibility(View.GONE);
             checkFriendshipStatus();
         } else {
             binding.editProfileImageFab.setVisibility(View.VISIBLE);
             binding.editCoverImageFab.setVisibility(View.VISIBLE);
+            binding.qrCodeButton.setVisibility(View.VISIBLE);
         }
 
         loadUserProfile();

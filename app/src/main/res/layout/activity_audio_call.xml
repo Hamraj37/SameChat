@@ -79,6 +79,7 @@
             android:src="@android:drawable/ic_lock_silent_mode"
             app:backgroundTint="?attr/colorSurfaceVariant"
             app:fabCustomSize="56dp"
+            app:shapeAppearanceOverlay="@style/CircleAppearance"
             app:tint="?attr/colorOnSurfaceVariant" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -90,6 +91,7 @@
             android:src="@android:drawable/stat_sys_speakerphone"
             app:backgroundTint="?attr/colorSurfaceVariant"
             app:fabCustomSize="56dp"
+            app:shapeAppearanceOverlay="@style/CircleAppearance"
             app:tint="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
@@ -103,6 +105,7 @@
         android:src="@android:drawable/ic_menu_close_clear_cancel"
         app:backgroundTint="?attr/colorError"
         app:fabCustomSize="64dp"
+        app:shapeAppearanceOverlay="@style/CircleAppearance"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toStartOf="@+id/btn_accept"
         app:layout_constraintHorizontal_chainStyle="packed"
@@ -119,6 +122,7 @@
         android:visibility="gone"
         app:backgroundTint="@color/whatsapp_green"
         app:fabCustomSize="64dp"
+        app:shapeAppearanceOverlay="@style/CircleAppearance"
         app:layout_constraintBottom_toBottomOf="@+id/btn_decline"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/btn_decline"

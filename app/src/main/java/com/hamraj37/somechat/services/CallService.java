@@ -37,10 +37,13 @@ public class CallService extends Service {
     private static final String CHANNEL_ID = "CallChannel";
     private static final String MESSAGE_CHANNEL_ID = "MessageChannel";
     private static final String SERVICE_CHANNEL_ID = "ServiceChannel";
+    public static final String ACTION_ANSWER = "com.hamraj37.somechat.ACTION_ANSWER";
+    public static final String ACTION_DECLINE = "com.hamraj37.somechat.ACTION_DECLINE";
     private ValueEventListener callListener;
     private ValueEventListener friendsListener;
     private final Map<String, ValueEventListener> messageListeners = new HashMap<>();
     private final Map<String, String> userNames = new HashMap<>();
+    private final Map<String, String> notifiedCalls = new HashMap<>(); // CallID -> Status
     private boolean isListenersSetup = false;
 
     public static boolean isCallActive = false;
@@ -48,10 +51,34 @@ public class CallService extends Service {
     public static String activeCallName = null;
     public static String activeCallAvatar = null;
     public static boolean isActiveCallVideo = false;
+    public static boolean isActiveCallIncoming = false;
     public static long callStartTime = 0;
 
     @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        if (isCallActive && activeCallId != null) {
+            String myUid = FirebaseAuth.getInstance().getUid();
+            if (myUid != null) {
+                // Set status to ended on both possible paths to ensure the other side receives it
+                FirebaseDatabase.getInstance().getReference("calls").child(myUid).child(activeCallId).child("status").setValue("ended");
+                FirebaseDatabase.getInstance().getReference("calls").child(activeCallId).child(myUid).child("status").setValue("ended");
+            }
+        }
+        stopSelf();
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.getAction() != null) {
+            String action = intent.getAction();
+            if (ACTION_ANSWER.equals(action)) {
+                handleAnswer(intent);
+            } else if (ACTION_DECLINE.equals(action)) {
+                handleDecline(intent);
+            }
+        }
+
         createNotificationChannels();
         Notification notification = new NotificationCompat.Builder(this, SERVICE_CHANNEL_ID)
                 .setContentTitle(getString(R.string.app_name) + " is running")
@@ -108,51 +135,77 @@ public class CallService extends Service {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!snapshot.exists()) {
+                    if (isCallActive) {
+                        endActiveCall();
+                    }
                     NotificationManager nm = getSystemService(NotificationManager.class);
                     if (nm != null) nm.cancel(2);
                     return;
                 }
                 boolean activeCall = false;
                 for (DataSnapshot callerSnapshot : snapshot.getChildren()) {
+                    String callerId = callerSnapshot.getKey();
                     String status = callerSnapshot.child("status").getValue(String.class);
+                    
                     if ("calling".equals(status)) {
                         activeCall = true;
-                        String callerId = callerSnapshot.getKey();
-                        String callerName = callerSnapshot.child("callerName").getValue(String.class);
-                        String callerAvatar = callerSnapshot.child("callerAvatar").getValue(String.class);
-                        Boolean isVideo = callerSnapshot.child("isVideo").getValue(Boolean.class);
+                        
+                        // Only notify if we haven't already for this caller in this state
+                        if (!"calling".equals(notifiedCalls.get(callerId))) {
+                            notifiedCalls.put(callerId, "calling");
+                            
+                            String callerName = callerSnapshot.child("callerName").getValue(String.class);
+                            String callerAvatar = callerSnapshot.child("callerAvatar").getValue(String.class);
+                            Boolean isVideo = callerSnapshot.child("isVideo").getValue(Boolean.class);
 
-                        // Mark as "ringing" so we don't trigger multiple notifications
-                        callerSnapshot.getRef().child("status").setValue("ringing");
+                            // Mark as "ringing" so we don't trigger multiple notifications
+                            callerSnapshot.getRef().child("status").setValue("ringing");
 
-                        // Send In-App broadcast
-                        Intent broadcastIntent = new Intent("com.hamraj37.somechat.INCOMING_CALL");
-                        broadcastIntent.setPackage(getPackageName());
-                        broadcastIntent.putExtra("callerId", callerId);
-                        broadcastIntent.putExtra("callerName", callerName);
-                        broadcastIntent.putExtra("callerAvatar", callerAvatar);
-                        broadcastIntent.putExtra("isVideo", isVideo != null && isVideo);
-                        sendBroadcast(broadcastIntent);
+                            // Send In-App broadcast
+                            Intent broadcastIntent = new Intent("com.hamraj37.somechat.INCOMING_CALL");
+                            broadcastIntent.setPackage(getPackageName());
+                            broadcastIntent.putExtra("callerId", callerId);
+                            broadcastIntent.putExtra("callerName", callerName);
+                            broadcastIntent.putExtra("callerAvatar", callerAvatar);
+                            broadcastIntent.putExtra("isVideo", isVideo != null && isVideo);
+                            sendBroadcast(broadcastIntent);
 
-                        showCallNotification(callerId, callerName, callerAvatar, isVideo != null && isVideo);
+                            // Update service state so onTaskRemoved can end this call if swiped away
+                            isCallActive = true;
+                            activeCallId = callerId;
+                            activeCallName = callerName;
+                            activeCallAvatar = callerAvatar;
+                            isActiveCallVideo = isVideo != null && isVideo;
+                            isActiveCallIncoming = true;
+
+                            showCallNotification(callerId, callerName, callerAvatar, isVideo != null && isVideo);
+                        }
                     } else if ("ringing".equals(status) || "accepted".equals(status)) {
                         activeCall = true;
                     }
                 }
-                if (!activeCall) {
-                    // Call is no longer active (ended or cancelled)
-                    isCallActive = false;
-                    activeCallId = null;
-                    activeCallName = null;
-                    activeCallAvatar = null;
-
-                    Intent endIntent = new Intent("com.hamraj37.somechat.CALL_ENDED");
-                    endIntent.setPackage(getPackageName());
-                    sendBroadcast(endIntent);
-
-                    NotificationManager nm = getSystemService(NotificationManager.class);
-                    if (nm != null) nm.cancel(2);
+                
+                if (!activeCall && isCallActive) {
+                    endActiveCall();
                 }
+            }
+
+            private void endActiveCall() {
+                // Call is no longer active (ended or cancelled)
+                isCallActive = false;
+                activeCallId = null;
+                activeCallName = null;
+                activeCallAvatar = null;
+                isActiveCallIncoming = false;
+                isActiveCallVideo = false;
+                notifiedCalls.clear();
+
+                Intent endIntent = new Intent("com.hamraj37.somechat.CALL_ENDED");
+                endIntent.setPackage(getPackageName());
+                sendBroadcast(endIntent);
+
+                NotificationManager nm = getSystemService(NotificationManager.class);
+                if (nm != null) nm.cancel(2);
             }
 
             @Override
@@ -161,6 +214,28 @@ public class CallService extends Service {
 
         FirebaseDatabase.getInstance().getReference("calls").child(uid)
                 .addValueEventListener(callListener);
+    }
+
+    private void handleAnswer(Intent intent) {
+        boolean isVideo = intent.getBooleanExtra("isVideo", false);
+        Intent callIntent = new Intent(this, isVideo ? VideoCallActivity.class : AudioCallActivity.class);
+        callIntent.putExtras(intent.getExtras());
+        callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        startActivity(callIntent);
+
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) nm.cancel(2);
+    }
+
+    private void handleDecline(Intent intent) {
+        String callerId = intent.getStringExtra("uid");
+        String myUid = FirebaseAuth.getInstance().getUid();
+        if (myUid != null && callerId != null) {
+            FirebaseDatabase.getInstance().getReference("calls").child(myUid).child(callerId).child("status").setValue("rejected");
+        }
+
+        NotificationManager nm = getSystemService(NotificationManager.class);
+        if (nm != null) nm.cancel(2);
     }
 
     private void showCallNotification(String callerId, String callerName, String callerAvatar, boolean isVideo) {
@@ -175,6 +250,20 @@ public class CallService extends Service {
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        // Answer Action
+        Intent answerIntent = new Intent(this, CallService.class);
+        answerIntent.setAction(ACTION_ANSWER);
+        answerIntent.putExtras(intent.getExtras());
+        PendingIntent answerPendingIntent = PendingIntent.getService(this, 101, answerIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+        // Decline Action
+        Intent declineIntent = new Intent(this, CallService.class);
+        declineIntent.setAction(ACTION_DECLINE);
+        declineIntent.putExtra("uid", callerId);
+        PendingIntent declinePendingIntent = PendingIntent.getService(this, 102, declineIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Incoming " + (isVideo ? "Video" : "Audio") + " Call")
                 .setContentText(callerName + " is calling you")
@@ -182,7 +271,10 @@ public class CallService extends Service {
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setFullScreenIntent(pendingIntent, true)
+                .addAction(android.R.drawable.ic_menu_call, "Answer", answerPendingIntent)
+                .addAction(android.R.drawable.ic_menu_close_clear_cancel, "Decline", declinePendingIntent)
                 .setAutoCancel(true)
+                .setOngoing(true)
                 .build();
 
         NotificationManager notificationManager = getSystemService(NotificationManager.class);

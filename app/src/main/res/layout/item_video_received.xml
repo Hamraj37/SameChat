@@ -149,6 +149,8 @@
                     android:layout_height="wrap_content"
                     android:layout_gravity="center"
                     android:visibility="gone"
+                    android:indeterminate="false"
+                    android:max="100"
                     app:indicatorColor="?attr/colorPrimary"
                     app:trackColor="@android:color/transparent"
                     tools:visibility="visible"

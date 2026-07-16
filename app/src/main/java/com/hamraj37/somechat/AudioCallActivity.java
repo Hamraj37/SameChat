@@ -70,6 +70,12 @@ public class AudioCallActivity extends BaseActivity {
     private boolean isLogged = false;
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         boolean isNightMode = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
@@ -84,10 +90,27 @@ public class AudioCallActivity extends BaseActivity {
         senderId = FirebaseAuth.getInstance().getUid();
 
         initViews();
+        
+        // If we are returning to an existing call that is already connected, 
+        // we don't want to re-initialize everything if the activity instance is preserved.
+        // However, if onCreate is called, it means this is a new instance.
+        // We should check if this UID is the one currently active in CallService.
+        if (CallService.isCallActive && receiverId != null && receiverId.equals(CallService.activeCallId)) {
+            // Resuming existing call state
+            startTime = CallService.callStartTime;
+            if (startTime != 0) {
+                isConnected = true;
+                callStatus.setText("Connected");
+                btnAccept.setVisibility(View.GONE);
+                findViewById(R.id.controls_container).setVisibility(View.VISIBLE);
+                startTimer();
+            }
+        }
+
         checkPermissionsAndInit();
         setupAudioRouting();
         setupProximitySensor();
-        if (isIncoming) {
+        if (isIncoming && !isConnected) {
             startRingtone();
         }
     }
@@ -118,7 +141,16 @@ public class AudioCallActivity extends BaseActivity {
         if (isConnected) {
             minimizeCall();
         } else {
+            // If calling or incoming, back press should decline/cancel
             endCall();
+        }
+    }
+
+    @Override
+    protected void onUserLeaveHint() {
+        super.onUserLeaveHint();
+        if (isConnected) {
+            minimizeCall();
         }
     }
 
@@ -128,8 +160,10 @@ public class AudioCallActivity extends BaseActivity {
         CallService.activeCallName = receiverName;
         CallService.activeCallAvatar = receiverAvatar;
         CallService.isActiveCallVideo = false;
+        CallService.isActiveCallIncoming = isIncoming;
         CallService.callStartTime = startTime;
         
+        // Navigate back to the app's main interface
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
         startActivity(intent);
@@ -242,8 +276,17 @@ public class AudioCallActivity extends BaseActivity {
         String signalingPath = isIncoming ? "calls/" + senderId + "/" + receiverId : "calls/" + receiverId + "/" + senderId;
         callRef = FirebaseDatabase.getInstance().getReference(signalingPath);
 
-        if (!isIncoming) {
+        if (!isIncoming && !isConnected) {
             callRef.child("status").setValue("calling");
+            
+            // Mark as active call so if swiped away, it can be ended
+            CallService.isCallActive = true;
+            CallService.activeCallId = receiverId;
+            CallService.activeCallName = receiverName;
+            CallService.activeCallAvatar = receiverAvatar;
+            CallService.isActiveCallVideo = false;
+            CallService.isActiveCallIncoming = false;
+
             String name = FirebaseAuth.getInstance().getCurrentUser() != null ? 
                          FirebaseAuth.getInstance().getCurrentUser().getDisplayName() : "User";
             String avatar = FirebaseAuth.getInstance().getCurrentUser() != null && FirebaseAuth.getInstance().getCurrentUser().getPhotoUrl() != null ?
@@ -278,6 +321,14 @@ public class AudioCallActivity extends BaseActivity {
                 if ("accepted".equals(status)) {
                     stopRingtone();
                     isConnected = true;
+                    CallService.isCallActive = true;
+                    CallService.activeCallId = receiverId;
+                    CallService.activeCallName = receiverName;
+                    CallService.activeCallAvatar = receiverAvatar;
+                    CallService.isActiveCallVideo = false;
+                    CallService.isActiveCallIncoming = isIncoming;
+                    CallService.callStartTime = startTime;
+
                     updateProximitySensor(true);
                     callStatus.setText("Connected");
                     btnAccept.setVisibility(View.GONE);
@@ -444,8 +495,8 @@ public class AudioCallActivity extends BaseActivity {
     }
 
     private void startTimer() {
-        if (startTime != 0) return;
-        startTime = System.currentTimeMillis();
+        if (timerRunnable != null) return;
+        if (startTime == 0) startTime = System.currentTimeMillis();
         callTimer.setVisibility(View.VISIBLE);
         timerRunnable = new Runnable() {
             @Override
@@ -464,6 +515,7 @@ public class AudioCallActivity extends BaseActivity {
     private void stopTimer() {
         if (timerRunnable != null) {
             timerHandler.removeCallbacks(timerRunnable);
+            timerRunnable = null;
         }
     }
 

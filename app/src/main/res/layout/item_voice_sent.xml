@@ -103,26 +103,34 @@
                 android:orientation="horizontal"
                 android:padding="8dp">
 
-                <ImageView
-                    android:id="@+id/btn_play_pause"
+                <FrameLayout
                     android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:padding="4dp"
-                    android:src="@android:drawable/ic_media_play"
-                    android:contentDescription="@string/play_voice_msg"
-                    app:tint="?attr/colorOnPrimary" />
+                    android:layout_height="36dp">
 
-                <com.google.android.material.progressindicator.CircularProgressIndicator
-                    android:id="@+id/upload_progress"
-                    android:layout_width="24dp"
-                    android:layout_height="24dp"
-                    android:visibility="gone"
-                    app:indicatorColor="@android:color/white"
-                    app:trackColor="@android:color/transparent"
-                    app:indicatorSize="24dp"
-                    tools:visibility="visible"
-                    tools:progress="50" />
+                    <ImageView
+                        android:id="@+id/btn_play_pause"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:background="?attr/selectableItemBackgroundBorderless"
+                        android:padding="4dp"
+                        android:src="@android:drawable/ic_media_play"
+                        android:contentDescription="@string/play_voice_msg"
+                        app:tint="?attr/colorOnPrimary" />
+
+                    <com.google.android.material.progressindicator.CircularProgressIndicator
+                        android:id="@+id/upload_progress"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
+                        android:layout_gravity="center"
+                        android:visibility="gone"
+                        android:indeterminate="false"
+                        android:max="100"
+                        app:indicatorColor="@android:color/white"
+                        app:trackColor="@android:color/transparent"
+                        app:indicatorSize="24dp"
+                        tools:visibility="visible"
+                        tools:progress="50" />
+                </FrameLayout>
 
                 <com.google.android.material.progressindicator.LinearProgressIndicator
                     android:id="@+id/voice_progress"

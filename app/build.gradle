@@ -29,6 +29,9 @@ android {
         
         def githubToken = (localProperties.getProperty('GITHUB_TOKEN') ?: System.getenv('SAMECHAT_GH_TOKEN') ?: '').trim()
         buildConfigField "String", "GITHUB_TOKEN", "\"${githubToken}\""
+
+        def openRouterKey = (localProperties.getProperty('OPENROUTER_API_KEY') ?: System.getenv('OPENROUTER_API_KEY') ?: '').trim()
+        buildConfigField "String", "OPENROUTER_API_KEY", "\"${openRouterKey}\""
     }
 
     signingConfigs {

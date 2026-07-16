@@ -2,7 +2,9 @@ package com.hamraj37.somechat;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
+import com.hamraj37.somechat.services.CallService;
 import android.media.AudioManager;
 import android.media.Ringtone;
 import android.media.RingtoneManager;
@@ -89,6 +91,12 @@ public class VideoCallActivity extends BaseActivity {
     private boolean isLogged = false;
 
     @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+    }
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(false);
@@ -101,9 +109,22 @@ public class VideoCallActivity extends BaseActivity {
         senderId = FirebaseAuth.getInstance().getUid();
 
         initViews();
+
+        if (CallService.isCallActive && receiverId != null && receiverId.equals(CallService.activeCallId)) {
+            // Resuming existing call state
+            startTime = CallService.callStartTime;
+            if (startTime != 0) {
+                isConnected = true;
+                callStatus.setText("Connected");
+                btnAccept.setVisibility(View.GONE);
+                findViewById(R.id.controls_container).setVisibility(View.VISIBLE);
+                startTimer();
+            }
+        }
+
         checkPermissionsAndInit();
         setupAudioRouting();
-        if (isIncoming) {
+        if (isIncoming && !isConnected) {
             startRingtone();
         }
 
@@ -442,8 +463,17 @@ public class VideoCallActivity extends BaseActivity {
         String signalingPath = isIncoming ? "calls/" + senderId + "/" + receiverId : "calls/" + receiverId + "/" + senderId;
         callRef = FirebaseDatabase.getInstance().getReference(signalingPath);
 
-        if (!isIncoming) {
+        if (!isIncoming && !isConnected) {
             callRef.child("status").setValue("calling");
+
+            // Mark as active call so if swiped away, it can be ended
+            CallService.isCallActive = true;
+            CallService.activeCallId = receiverId;
+            CallService.activeCallName = receiverName;
+            CallService.activeCallAvatar = receiverAvatar;
+            CallService.isActiveCallVideo = true;
+            CallService.isActiveCallIncoming = false;
+
             String name = FirebaseAuth.getInstance().getCurrentUser() != null ? 
                          FirebaseAuth.getInstance().getCurrentUser().getDisplayName() : "User";
             String avatar = FirebaseAuth.getInstance().getCurrentUser() != null && FirebaseAuth.getInstance().getCurrentUser().getPhotoUrl() != null ?
@@ -478,6 +508,14 @@ public class VideoCallActivity extends BaseActivity {
                 if ("accepted".equals(status)) {
                     stopRingtone();
                     isConnected = true;
+                    CallService.isCallActive = true;
+                    CallService.activeCallId = receiverId;
+                    CallService.activeCallName = receiverName;
+                    CallService.activeCallAvatar = receiverAvatar;
+                    CallService.isActiveCallVideo = true;
+                    CallService.isActiveCallIncoming = isIncoming;
+                    CallService.callStartTime = startTime;
+
                     callStatus.setText("Connected");
                     btnAccept.setVisibility(View.GONE);
                     findViewById(R.id.controls_container).setVisibility(View.VISIBLE);
@@ -587,6 +625,11 @@ public class VideoCallActivity extends BaseActivity {
     }
 
     private void endCall() {
+        CallService.isCallActive = false;
+        Intent endIntent = new Intent("com.hamraj37.somechat.CALL_ENDED");
+        endIntent.setPackage(getPackageName());
+        sendBroadcast(endIntent);
+
         stopRingtone();
         stopTimer();
         AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
@@ -645,8 +688,8 @@ public class VideoCallActivity extends BaseActivity {
     }
 
     private void startTimer() {
-        if (startTime != 0) return;
-        startTime = System.currentTimeMillis();
+        if (timerRunnable != null) return;
+        if (startTime == 0) startTime = System.currentTimeMillis();
         callTimer.setVisibility(View.VISIBLE);
         timerRunnable = new Runnable() {
             @Override
@@ -665,18 +708,26 @@ public class VideoCallActivity extends BaseActivity {
     private void stopTimer() {
         if (timerRunnable != null) {
             timerHandler.removeCallbacks(timerRunnable);
+            timerRunnable = null;
         }
     }
 
     @Override
     public void onBackPressed() {
-        enterPipMode();
+        if (isConnected) {
+            enterPipMode();
+        } else {
+            // If calling or incoming, back press should decline/cancel
+            endCall();
+        }
     }
 
     @Override
     protected void onUserLeaveHint() {
         super.onUserLeaveHint();
-        enterPipMode();
+        if (isConnected) {
+            enterPipMode();
+        }
     }
 
     private void enterPipMode() {

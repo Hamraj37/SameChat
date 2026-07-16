@@ -26,6 +26,8 @@ import com.google.firebase.database.ValueEventListener;
 import com.hamraj37.somechat.ChatActivity;
 import com.hamraj37.somechat.ProfileInfoActivity;
 import com.hamraj37.somechat.R;
+import com.hamraj37.somechat.SearchUserActivity;
+import android.widget.Toast;
 import com.hamraj37.somechat.adapters.FriendRequestAdapter;
 import com.hamraj37.somechat.adapters.GroupInviteAdapter;
 import com.hamraj37.somechat.databinding.FragmentTransformBinding;
@@ -60,6 +62,20 @@ public class TransformFragment extends Fragment {
 
         setupFriendRequests();
         setupGroupInvites();
+
+        binding.fab.setOnClickListener(v -> {
+            Intent intent = new Intent(getContext(), SearchUserActivity.class);
+            startActivity(intent);
+        });
+
+        binding.fabAi.setOnClickListener(v -> {
+            Intent intent = new Intent(getContext(), com.hamraj37.somechat.AIChatActivity.class);
+            startActivity(intent);
+        });
+
+        // Start AI FAB border rotation animation
+        android.view.animation.Animation rotate = android.view.animation.AnimationUtils.loadAnimation(getContext(), R.anim.rotate_infinite);
+        binding.aiFabBorder.startAnimation(rotate);
 
         return root;
     }

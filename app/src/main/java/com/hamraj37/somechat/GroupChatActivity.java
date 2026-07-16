@@ -60,9 +60,19 @@ public class GroupChatActivity extends BaseActivity {
     private TextView replyText;
     private Message replyingToMessage = null;
 
+    private View editLayout;
+    private TextView editTextPreview;
+    private Message editingMessage = null;
+
     private View groupInfoContainer;
     private View selectionActionsContainer;
     private TextView selectionCountText;
+
+    private View pinnedMessageLayout;
+    private TextView pinnedMessageTitle;
+    private TextView pinnedMessageText;
+    private List<Message> pinnedMessages = new ArrayList<>();
+    private int currentPinnedIndex = 0;
 
     private ImageView btnAttachment;
     private View attachmentMenu;
@@ -114,9 +124,18 @@ public class GroupChatActivity extends BaseActivity {
         replyName = findViewById(R.id.reply_name);
         replyText = findViewById(R.id.reply_text);
         
+        editLayout = findViewById(R.id.edit_layout);
+        editTextPreview = findViewById(R.id.edit_text_preview);
+        findViewById(R.id.btn_cancel_edit).setOnClickListener(v -> cancelEdit());
+
         groupInfoContainer = findViewById(R.id.group_info_container);
         selectionActionsContainer = findViewById(R.id.selection_actions_container);
         selectionCountText = findViewById(R.id.selection_count);
+
+        pinnedMessageLayout = findViewById(R.id.pinned_message_layout);
+        pinnedMessageTitle = findViewById(R.id.pinned_message_title);
+        pinnedMessageText = findViewById(R.id.pinned_message_text);
+        findViewById(R.id.btn_unpin).setOnClickListener(v -> unpinCurrentMessage());
 
         btnAttachment = findViewById(R.id.btn_attachment);
         attachmentMenu = findViewById(R.id.attachment_menu);
@@ -135,6 +154,13 @@ public class GroupChatActivity extends BaseActivity {
         checkMembership();
         listenForGroupDetails();
 
+        findViewById(R.id.btn_reply_selected).setOnClickListener(v -> replyToSelectedMessage());
+        findViewById(R.id.btn_pin_selected).setOnClickListener(v -> pinSelectedMessages());
+        findViewById(R.id.btn_copy_selected).setOnClickListener(v -> copySelectedMessages());
+        findViewById(R.id.btn_forward_selected).setOnClickListener(v -> forwardSelectedMessages());
+        findViewById(R.id.btn_edit_selected).setOnClickListener(v -> editSelectedMessage());
+        findViewById(R.id.btn_delete_selected).setOnClickListener(v -> deleteSelectedMessages());
+
         getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
             @Override
             public void handleOnBackPressed() {
@@ -144,6 +170,8 @@ public class GroupChatActivity extends BaseActivity {
                     hideAttachmentMenu();
                 } else if (replyingToMessage != null) {
                     cancelReply();
+                } else if (editingMessage != null) {
+                    cancelEdit();
                 } else {
                     setEnabled(false);
                     getOnBackPressedDispatcher().onBackPressed();
@@ -162,9 +190,9 @@ public class GroupChatActivity extends BaseActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 if (s.toString().trim().isEmpty()) {
-                    btnSend.setImageResource(android.R.drawable.ic_btn_speak_now);
+                    btnSend.setImageResource(editingMessage != null ? android.R.drawable.ic_menu_close_clear_cancel : android.R.drawable.ic_btn_speak_now);
                 } else {
-                    btnSend.setImageResource(android.R.drawable.ic_menu_send);
+                    btnSend.setImageResource(editingMessage != null ? android.R.drawable.ic_menu_save : android.R.drawable.ic_menu_send);
                 }
             }
 
@@ -175,6 +203,12 @@ public class GroupChatActivity extends BaseActivity {
         btnSend.setOnTouchListener((v, event) -> {
             String text = messageInput.getText().toString().trim();
             if (text.isEmpty()) {
+                if (editingMessage != null) {
+                    if (event.getAction() == android.view.MotionEvent.ACTION_UP) {
+                        cancelEdit();
+                    }
+                    return true;
+                }
                 // Voice message mode
                 switch (event.getAction()) {
                     case android.view.MotionEvent.ACTION_DOWN:
@@ -625,12 +659,26 @@ public class GroupChatActivity extends BaseActivity {
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!isMember) return; // Extra safety
                 messageList.clear();
+                pinnedMessages.clear();
                 for (DataSnapshot ds : snapshot.getChildren()) {
                     Message message = ds.getValue(Message.class);
                     if (message != null) {
+                        if (message.isPinned()) {
+                            pinnedMessages.add(message);
+                        }
                         messageList.add(message);
                     }
                 }
+
+                if (!pinnedMessages.isEmpty()) {
+                    if (currentPinnedIndex >= pinnedMessages.size()) {
+                        currentPinnedIndex = 0;
+                    }
+                    showPinnedMessage(pinnedMessages.get(currentPinnedIndex));
+                } else {
+                    pinnedMessageLayout.setVisibility(View.GONE);
+                }
+
                 adapter.notifyDataSetChanged();
                 if (!messageList.isEmpty()) {
                     chatRecycler.scrollToPosition(adapter.getItemCount() - 1);
@@ -707,6 +755,11 @@ public class GroupChatActivity extends BaseActivity {
         String text = messageInput.getText().toString().trim();
         if (TextUtils.isEmpty(text)) return;
 
+        if (editingMessage != null) {
+            updateMessage(editingMessage, text);
+            return;
+        }
+
         String messageId = groupChatRef.child("messages").push().getKey();
         Message message = new Message(messageId, senderId, groupId, text, System.currentTimeMillis());
         message.setSenderName(senderName);
@@ -771,11 +824,253 @@ public class GroupChatActivity extends BaseActivity {
             selectionCountText.setVisibility(View.VISIBLE);
             selectionActionsContainer.setVisibility(View.VISIBLE);
             selectionCountText.setText(String.valueOf(count));
+
+            List<Message> selected = adapter.getSelectedMessages();
+            boolean isSingle = count == 1;
+            boolean isTextOnly = true;
+            for (Message m : selected) {
+                if (m.getType() != null && !m.getType().equals("text")) {
+                    isTextOnly = false;
+                    break;
+                }
+            }
+
+            findViewById(R.id.btn_reply_selected).setVisibility(isSingle ? View.VISIBLE : View.GONE);
+            findViewById(R.id.btn_copy_selected).setVisibility(isSingle && isTextOnly ? View.VISIBLE : View.GONE);
+            
+            // Show edit only for single text message sent by me
+            boolean isMyMessage = isSingle && selected.get(0).getSenderId().equals(senderId);
+            findViewById(R.id.btn_edit_selected).setVisibility(isSingle && isTextOnly && isMyMessage ? View.VISIBLE : View.GONE);
+
+            androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+            toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material);
+            toolbar.setNavigationOnClickListener(v -> adapter.clearSelection());
         } else {
             groupInfoContainer.setVisibility(View.VISIBLE);
             selectionCountText.setVisibility(View.GONE);
             selectionActionsContainer.setVisibility(View.GONE);
+
+            androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
+            toolbar.setNavigationIcon(android.R.drawable.ic_menu_revert);
+            toolbar.setNavigationOnClickListener(v -> finish());
         }
+    }
+
+    private void copySelectedMessages() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.isEmpty()) return;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < selected.size(); i++) {
+            Message m = selected.get(i);
+            String text;
+            boolean isMe = m.getSenderId().equals(senderId);
+            if (m.getType() == null || m.getType().equals("text")) {
+                text = com.hamraj37.somechat.utils.EncryptionManager.decrypt(m.getText(), this, isMe);
+            } else {
+                text = m.getType();
+            }
+            sb.append(text);
+            if (i < selected.size() - 1) sb.append("\n");
+        }
+
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        ClipData clip = ClipData.newPlainText("messages", sb.toString());
+        if (clipboard != null) {
+            clipboard.setPrimaryClip(clip);
+            Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+        }
+        adapter.clearSelection();
+    }
+
+    private void replyToSelectedMessage() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.size() == 1) {
+            showReplyLayout(selected.get(0));
+            adapter.clearSelection();
+        }
+    }
+
+    private void showReplyLayout(Message message) {
+        replyingToMessage = message;
+        cancelEdit();
+        replyLayout.setVisibility(View.VISIBLE);
+        
+        replyName.setText(message.getSenderName());
+        
+        String displayText;
+        boolean isMe = message.getSenderId().equals(senderId);
+        if (message.getType() == null || "text".equals(message.getType())) {
+            displayText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, isMe);
+        } else {
+            String type = message.getType();
+            displayText = type.substring(0, 1).toUpperCase() + type.substring(1);
+        }
+        replyText.setText(displayText);
+        
+        messageInput.requestFocus();
+        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(messageInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void forwardSelectedMessages() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.isEmpty()) return;
+
+        ArrayList<Message> forwardList = new ArrayList<>();
+        for (Message m : selected) {
+            forwardList.add(prepareMessageForForward(m));
+        }
+
+        Intent intent = new Intent(this, SearchUserActivity.class);
+        intent.putExtra("forward_message", true);
+        intent.putExtra("forward_list", forwardList);
+        startActivity(intent);
+        
+        adapter.clearSelection();
+        Toast.makeText(this, "Select a user to forward to", Toast.LENGTH_SHORT).show();
+    }
+
+    private Message prepareMessageForForward(Message message) {
+        Message f = new Message();
+        f.setType(message.getType());
+        f.setDuration(message.getDuration());
+        boolean isMe = message.getSenderId().equals(senderId);
+        if (message.getType() == null || "text".equals(message.getType())) {
+            f.setText(com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, isMe));
+        } else {
+            f.setMediaUrl(com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getMediaUrl(), this, isMe));
+        }
+        f.setForwarded(true);
+        return f;
+    }
+
+    private void deleteSelectedMessages() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.isEmpty()) return;
+
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Delete " + selected.size() + " messages?")
+                .setMessage("Delete these messages from this group for you?")
+                .setPositiveButton("Delete for me", (dialog, which) -> {
+                    for (Message m : selected) {
+                        groupChatRef.child("messages").child(m.getMessageId()).removeValue();
+                    }
+                    adapter.clearSelection();
+                })
+                .setNegativeButton("Cancel", null)
+                .show();
+    }
+
+    private void pinSelectedMessages() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.isEmpty()) return;
+
+        for (Message m : selected) {
+            groupChatRef.child("messages").child(m.getMessageId()).child("pinned").setValue(true);
+        }
+        adapter.clearSelection();
+        Toast.makeText(this, selected.size() > 1 ? "Messages pinned" : "Message pinned", Toast.LENGTH_SHORT).show();
+    }
+
+    private void unpinCurrentMessage() {
+        if (pinnedMessages.isEmpty() || currentPinnedIndex >= pinnedMessages.size()) return;
+        
+        Message current = pinnedMessages.get(currentPinnedIndex);
+        groupChatRef.child("messages").child(current.getMessageId()).child("pinned").setValue(false);
+        Toast.makeText(this, "Message unpinned", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showPinnedMessage(Message message) {
+        pinnedMessageLayout.setVisibility(View.VISIBLE);
+        
+        if (pinnedMessages.size() > 1) {
+            pinnedMessageTitle.setText("Pinned Message (" + (currentPinnedIndex + 1) + "/" + pinnedMessages.size() + ")");
+        } else {
+            pinnedMessageTitle.setText("Pinned Message");
+        }
+
+        boolean isMe = message.getSenderId().equals(senderId);
+        
+        String displayText;
+        if (message.getType() == null || "text".equals(message.getType())) {
+            displayText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, isMe);
+        } else {
+            String type = message.getType();
+            displayText = type.substring(0, 1).toUpperCase() + type.substring(1);
+        }
+        pinnedMessageText.setText(displayText);
+        
+        pinnedMessageLayout.setOnClickListener(v -> {
+            // Scroll to current pinned message
+            for (int i = 0; i < messageList.size(); i++) {
+                if (messageList.get(i).getMessageId().equals(message.getMessageId())) {
+                    chatRecycler.smoothScrollToPosition(i + 1);
+                    adapter.highlightMessage(message.getMessageId());
+                    break;
+                }
+            }
+            
+            // Cycle to next one for the next view
+            if (pinnedMessages.size() > 1) {
+                currentPinnedIndex = (currentPinnedIndex + 1) % pinnedMessages.size();
+                showPinnedMessage(pinnedMessages.get(currentPinnedIndex));
+            }
+        });
+    }
+
+    private void editSelectedMessage() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.size() == 1) {
+            Message m = selected.get(0);
+            if (m.getSenderId().equals(senderId) && (m.getType() == null || m.getType().equals("text"))) {
+                enterEditMode(m);
+                adapter.clearSelection();
+            }
+        }
+    }
+
+    private void enterEditMode(Message message) {
+        editingMessage = message;
+        cancelReply(); // Can't edit and reply at the same time
+        
+        editLayout.setVisibility(View.VISIBLE);
+        String decryptedText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, true);
+        editTextPreview.setText(decryptedText);
+        
+        messageInput.setText(decryptedText);
+        messageInput.requestFocus();
+        messageInput.setSelection(messageInput.getText().length());
+        
+        btnSend.setImageResource(android.R.drawable.ic_menu_save); // Change icon to save/check
+        
+        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
+        if (imm != null) {
+            imm.showSoftInput(messageInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
+        }
+    }
+
+    private void cancelEdit() {
+        editingMessage = null;
+        editLayout.setVisibility(View.GONE);
+        messageInput.setText("");
+        btnSend.setImageResource(android.R.drawable.ic_btn_speak_now);
+    }
+
+    private void updateMessage(Message message, String newText) {
+        java.util.Map<String, Object> updates = new java.util.HashMap<>();
+        updates.put("text", newText); // Group chat doesn't seem to use E2EE for text based on sendMessage
+        updates.put("edited", true);
+
+        groupChatRef.child("messages").child(message.getMessageId()).updateChildren(updates)
+                .addOnSuccessListener(aVoid -> {
+                    cancelEdit();
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Failed to update message", Toast.LENGTH_SHORT).show();
+                });
     }
 
     @Override

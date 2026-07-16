@@ -154,6 +154,8 @@
                         android:layout_height="24dp"
                         android:layout_gravity="center"
                         android:visibility="gone"
+                        android:indeterminate="false"
+                        android:max="100"
                         app:indicatorSize="24dp"
                         app:indicatorColor="?attr/colorPrimary"
                         app:trackColor="@android:color/transparent"

@@ -15,7 +15,7 @@
         android:contentDescription="@null" />
 
     <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBarLayout"
+        android:id="@+id/main_app_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:background="@android:color/transparent"
@@ -130,6 +130,16 @@
                             app:tint="?attr/colorOnSurface" />
 
                         <ImageView
+                            android:id="@+id/btn_pin_selected"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:padding="12dp"
+                            android:src="@drawable/ic_pin"
+                            android:contentDescription="@string/pin"
+                            app:tint="?attr/colorOnSurface" />
+
+                        <ImageView
                             android:id="@+id/btn_copy_selected"
                             android:layout_width="48dp"
                             android:layout_height="48dp"
@@ -147,6 +157,17 @@
                             android:padding="12dp"
                             android:src="@drawable/ic_forward"
                             android:contentDescription="@string/forward"
+                            app:tint="?attr/colorOnSurface" />
+
+                        <ImageView
+                            android:id="@+id/btn_edit_selected"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:padding="12dp"
+                            android:src="@android:drawable/ic_menu_edit"
+                            android:contentDescription="@string/edit_message"
+                            android:visibility="gone"
                             app:tint="?attr/colorOnSurface" />
 
                         <ImageView
@@ -178,7 +199,7 @@
         app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
         app:stackFromEnd="true"
         app:layout_constraintBottom_toTopOf="@+id/input_container"
-        app:layout_constraintTop_toBottomOf="@+id/appBarLayout" />
+        app:layout_constraintTop_toBottomOf="@+id/main_app_bar" />
 
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/pinned_message_layout"
@@ -190,7 +211,7 @@
         app:cardBackgroundColor="?attr/colorSurfaceVariant"
         app:cardCornerRadius="12dp"
         app:cardElevation="2dp"
-        app:layout_constraintTop_toBottomOf="@id/appBarLayout">
+        app:layout_constraintTop_toBottomOf="@id/main_app_bar">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -268,6 +289,58 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
+
+            <LinearLayout
+                android:id="@+id/edit_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="8dp"
+                android:visibility="gone"
+                android:background="#10000000">
+
+                <View
+                    android:layout_width="4dp"
+                    android:layout_height="match_parent"
+                    android:layout_marginEnd="12dp"
+                    android:background="?attr/colorPrimary" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Edit Message"
+                        android:textColor="?attr/colorPrimary"
+                        android:textStyle="bold"
+                        android:textAppearance="?attr/textAppearanceLabelLarge" />
+
+                    <TextView
+                        android:id="@+id/edit_text_preview"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:alpha="0.8"
+                        tools:text="Original message content..." />
+                </LinearLayout>
+
+                <ImageView
+                    android:id="@+id/btn_cancel_edit"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_gravity="top"
+                    android:padding="4dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:src="@android:drawable/ic_menu_close_clear_cancel"
+                    app:tint="?attr/colorOnSurfaceVariant"
+                    android:contentDescription="Cancel Edit" />
+            </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/reply_layout"

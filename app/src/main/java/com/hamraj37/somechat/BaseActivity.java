@@ -33,6 +33,7 @@ import java.util.Locale;
 public class BaseActivity extends AppCompatActivity {
 
     protected static boolean isAppUnlocked = false;
+    private static boolean isPromptShowing = false;
     private static int activeActivities = 0;
     private BroadcastReceiver messageReceiver;
     private BroadcastReceiver callReceiver;
@@ -67,28 +68,23 @@ public class BaseActivity extends AppCompatActivity {
         callReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if ("com.hamraj37.somechat.CALL_ENDED".equals(intent.getAction())) {
+                String action = intent.getAction();
+                if ("com.hamraj37.somechat.CALL_ENDED".equals(action)) {
                     updateCallBar();
                     return;
                 }
 
-                String callerName = intent.getStringExtra("callerName");
-                String callerId = intent.getStringExtra("callerId");
-                String callerAvatar = intent.getStringExtra("callerAvatar");
-                boolean isVideo = intent.getBooleanExtra("isVideo", false);
+                if (!"com.hamraj37.somechat.INCOMING_CALL".equals(action)) {
+                    return;
+                }
 
                 // If already in a call activity, don't start another one
                 String className = BaseActivity.this.getClass().getSimpleName();
                 if (className.equals("AudioCallActivity") || className.equals("VideoCallActivity")) return;
 
-                // Automatically open correct Activity
-                Intent callIntent = new Intent(BaseActivity.this, isVideo ? VideoCallActivity.class : AudioCallActivity.class);
-                callIntent.putExtra("uid", callerId);
-                callIntent.putExtra("displayName", callerName);
-                callIntent.putExtra("photoUrl", callerAvatar);
-                callIntent.putExtra("isIncoming", true);
-                callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                startActivity(callIntent);
+                // We no longer automatically open the activity here to avoid interrupting the user.
+                // The CallService shows a high-priority heads-up notification (floating window)
+                // which allows the user to Answer or Decline via buttons, or tap to open full screen.
             }
         };
     }
@@ -114,20 +110,24 @@ public class BaseActivity extends AppCompatActivity {
         android.content.SharedPreferences prefs = getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
         boolean isLockEnabled = prefs.getBoolean("biometric_lock", false);
 
-        if (isLockEnabled && !isAppUnlocked) {
+        if (isLockEnabled && !isAppUnlocked && !isPromptShowing) {
             showBiometricPrompt();
         }
     }
 
     private void showBiometricPrompt() {
+        isPromptShowing = true;
         java.util.concurrent.Executor executor = ContextCompat.getMainExecutor(this);
         BiometricPrompt biometricPrompt = new BiometricPrompt(this,
                 executor, new BiometricPrompt.AuthenticationCallback() {
             @Override
             public void onAuthenticationError(int errorCode, @NonNull CharSequence errString) {
                 super.onAuthenticationError(errorCode, errString);
+                isPromptShowing = false;
                 if (errorCode == BiometricPrompt.ERROR_USER_CANCELED || errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
                     finishAffinity(); // Close all activities
+                } else if (errorCode == BiometricPrompt.ERROR_CANCELED) {
+                    // System-level cancellation, ignore to avoid annoying toast
                 } else {
                     Toast.makeText(getApplicationContext(), "Lock error: " + errString, Toast.LENGTH_SHORT).show();
                 }
@@ -136,7 +136,14 @@ public class BaseActivity extends AppCompatActivity {
             @Override
             public void onAuthenticationSucceeded(@NonNull BiometricPrompt.AuthenticationResult result) {
                 super.onAuthenticationSucceeded(result);
+                isPromptShowing = false;
                 isAppUnlocked = true;
+            }
+
+            @Override
+            public void onAuthenticationFailed() {
+                super.onAuthenticationFailed();
+                // Failed, but prompt stays up
             }
         });
 
@@ -165,6 +172,13 @@ public class BaseActivity extends AppCompatActivity {
     }
 
     private void updateCallBar() {
+        // Don't show call bar on call activities themselves
+        String className = this.getClass().getSimpleName();
+        if (className.equals("AudioCallActivity") || className.equals("VideoCallActivity")) {
+            hideCallBar();
+            return;
+        }
+
         if (CallService.isCallActive) {
             showCallBar();
         } else {
@@ -174,6 +188,20 @@ public class BaseActivity extends AppCompatActivity {
 
     private void showCallBar() {
         if (callBar == null) {
+            // Prefer adding to AppBarLayout if it exists (so it shows "after header")
+            View appBar = findViewById(R.id.main_app_bar);
+            if (appBar instanceof ViewGroup) {
+                ViewGroup appBarGroup = (ViewGroup) appBar;
+                callBar = LayoutInflater.from(this).inflate(R.layout.layout_call_bar, appBarGroup, false);
+                appBarGroup.addView(callBar);
+                
+                callBarTimer = callBar.findViewById(R.id.call_bar_timer);
+                setupCallBarClickListener();
+                startCallBarTimer();
+                callBar.setVisibility(View.VISIBLE);
+                return;
+            }
+
             ViewGroup root = findViewById(android.R.id.content);
             if (root != null) {
                 callBar = LayoutInflater.from(this).inflate(R.layout.layout_call_bar, root, false);
@@ -184,22 +212,29 @@ public class BaseActivity extends AppCompatActivity {
                 root.addView(callBar, lp);
 
                 callBarTimer = callBar.findViewById(R.id.call_bar_timer);
-                
-                callBar.setOnClickListener(v -> {
-                    Intent intent = new Intent(this, CallService.isActiveCallVideo ? VideoCallActivity.class : AudioCallActivity.class);
-                    intent.putExtra("uid", CallService.activeCallId);
-                    intent.putExtra("displayName", CallService.activeCallName);
-                    intent.putExtra("photoUrl", CallService.activeCallAvatar);
-                    intent.putExtra("isIncoming", false);
-                    intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                    startActivity(intent);
-                });
+                setupCallBarClickListener();
             }
         }
 
         if (callBar != null) {
             callBar.setVisibility(View.VISIBLE);
             startCallBarTimer();
+        }
+    }
+
+    private void setupCallBarClickListener() {
+        if (callBar != null) {
+            callBar.setOnClickListener(v -> {
+                Intent intent = new Intent(this, CallService.isActiveCallVideo ? VideoCallActivity.class : AudioCallActivity.class);
+                intent.putExtra("uid", CallService.activeCallId);
+                intent.putExtra("displayName", CallService.activeCallName);
+                intent.putExtra("photoUrl", CallService.activeCallAvatar);
+                intent.putExtra("isIncoming", false);
+                // REORDER_TO_FRONT brings the existing instance to the front if it exists
+                // SINGLE_TOP ensures we don't create a new instance if it's already at the top
+                intent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(intent);
+            });
         }
     }
 

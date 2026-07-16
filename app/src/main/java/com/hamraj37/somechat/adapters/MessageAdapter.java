@@ -823,7 +823,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 if (isSelectionMode) {
                     toggleSelection(message.getMessageId());
                 } else {
-                    openFullMedia(v.getContext(), message);
+                    if (com.hamraj37.somechat.utils.MediaUtils.isMediaDownloaded(v.getContext(), "image", message.getMessageId())) {
+                        openFullMedia(v.getContext(), message);
+                    } else {
+                        downloadMediaManual(imageMessage, message.getMediaUrl(), false, message.getMessageId());
+                    }
                 }
             });
 
@@ -898,7 +902,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 if (isSelectionMode) {
                     toggleSelection(message.getMessageId());
                 } else {
-                    openFullMedia(v.getContext(), message);
+                    if (com.hamraj37.somechat.utils.MediaUtils.isMediaDownloaded(v.getContext(), "image", message.getMessageId())) {
+                        openFullMedia(v.getContext(), message);
+                    } else {
+                        downloadMediaManual(imageMessage, message.getMediaUrl(), false, message.getMessageId());
+                    }
                 }
             });
 
@@ -970,7 +978,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 if (isSelectionMode) {
                     toggleSelection(message.getMessageId());
                 } else {
-                    openFullMedia(v.getContext(), message);
+                    if (com.hamraj37.somechat.utils.MediaUtils.isMediaDownloaded(v.getContext(), "video", message.getMessageId())) {
+                        openFullMedia(v.getContext(), message);
+                    } else {
+                        downloadMediaManual(videoThumbnail, message.getMediaUrl(), true, message.getMessageId());
+                    }
                 }
             });
 
@@ -1045,7 +1057,11 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 if (isSelectionMode) {
                     toggleSelection(message.getMessageId());
                 } else {
-                    openFullMedia(v.getContext(), message);
+                    if (com.hamraj37.somechat.utils.MediaUtils.isMediaDownloaded(v.getContext(), "video", message.getMessageId())) {
+                        openFullMedia(v.getContext(), message);
+                    } else {
+                        downloadMediaManual(videoThumbnail, message.getMediaUrl(), true, message.getMessageId());
+                    }
                 }
             });
 
@@ -1189,6 +1205,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         String type = isVideo ? "video" : "image";
         java.io.File localFile = com.hamraj37.somechat.utils.MediaUtils.getLocalFileForMedia(imageView.getContext(), type, messageId);
         if (localFile.exists()) {
+            imageView.setAlpha(1.0f);
+            imageView.setScaleType(android.widget.ImageView.ScaleType.CENTER_CROP);
             if (isVideo) {
                 new Thread(() -> {
                     try {
@@ -1212,7 +1230,12 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
         }
 
         imageView.setTag(encryptedInfo);
-        imageView.setImageResource(android.R.color.darker_gray);
+        
+        // Don't download automatically for thumbnails. 
+        // User must click to trigger download.
+        imageView.setImageResource(android.R.drawable.stat_sys_download);
+        imageView.setAlpha(0.6f);
+        imageView.setScaleType(android.widget.ImageView.ScaleType.CENTER);
 
         if (!encryptedInfo.trim().startsWith("{")) {
             com.bumptech.glide.Glide.with(imageView)
@@ -1220,13 +1243,19 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                     .centerCrop()
                     .placeholder(android.R.color.darker_gray)
                     .into(imageView);
-            return;
         }
+    }
 
+    private void downloadMediaManual(android.widget.ImageView imageView, String encryptedInfo, boolean isVideo, String messageId) {
+        if (downloadProgressMap.containsKey(messageId)) return;
+
+        String type = isVideo ? "video" : "image";
         try {
             org.json.JSONObject json = new org.json.JSONObject(encryptedInfo);
             String url = json.getString("u");
             String key = json.getString("k");
+
+            updateDownloadProgress(messageId, 0);
 
             com.hamraj37.somechat.utils.GitHubStorage.downloadFile(url, new com.hamraj37.somechat.utils.GitHubStorage.DownloadCallback() {
                 @Override
@@ -1241,76 +1270,43 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                     if (imageView.getContext() instanceof android.app.Activity) {
                         ((android.app.Activity) imageView.getContext()).runOnUiThread(() -> removeDownloadProgress(messageId));
                     }
-                    imageView.post(() -> {
-                        if (encryptedInfo.equals(imageView.getTag())) {
-                            imageView.setImageResource(android.R.drawable.ic_menu_report_image);
-                        }
-                    });
                 }
 
                 @Override
                 public void onSuccess(byte[] data) {
                     android.content.Context ctx = imageView.getContext();
-                    if (ctx instanceof android.app.Activity) {
-                        ((android.app.Activity) ctx).runOnUiThread(() -> removeDownloadProgress(messageId));
-                    }
                     try {
                         javax.crypto.SecretKey secretKey = com.hamraj37.somechat.utils.EncryptionManager.decodeKey(key);
                         byte[] decryptedBytes = com.hamraj37.somechat.utils.EncryptionManager.decryptRaw(data, secretKey);
                         com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(ctx, decryptedBytes, type, messageId);
 
-                        if (isVideo) {
-                            android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
-                            try {
-                                retriever.setDataSource(new android.media.MediaDataSource() {
-                                    @Override
-                                    public int readAt(long position, byte[] buffer, int offset, int size) {
-                                        if (position >= decryptedBytes.length) return -1;
-                                        int length = Math.min(size, (int) (decryptedBytes.length - position));
-                                        System.arraycopy(decryptedBytes, (int) position, buffer, offset, length);
-                                        return length;
-                                    }
-                                    @Override public long getSize() { return decryptedBytes.length; }
-                                    @Override public void close() {}
-                                });
-                                android.graphics.Bitmap bitmap = retriever.getFrameAtTime(0);
-                                if (bitmap != null) {
-                                    imageView.post(() -> {
-                                        if (encryptedInfo.equals(imageView.getTag())) {
-                                            imageView.setImageBitmap(bitmap);
-                                        }
-                                    });
-                                }
-                            } finally {
-                                try { retriever.release(); } catch (Exception ignored) {}
-                            }
-                        } else {
-                            imageView.post(() -> {
-                                if (encryptedInfo.equals(imageView.getTag())) {
-                                    com.bumptech.glide.Glide.with(imageView)
-                                            .load(decryptedBytes)
-                                            .centerCrop()
-                                            .placeholder(android.R.color.darker_gray)
-                                            .into(imageView);
-                                }
+                        if (ctx instanceof android.app.Activity) {
+                            ((android.app.Activity) ctx).runOnUiThread(() -> {
+                                removeDownloadProgress(messageId);
+                                notifyItemChanged(getPositionForMessageId(messageId));
                             });
                         }
                     } catch (Exception e) {
+                        if (ctx instanceof android.app.Activity) {
+                            ((android.app.Activity) ctx).runOnUiThread(() -> removeDownloadProgress(messageId));
+                        }
                         e.printStackTrace();
                     }
                 }
             });
         } catch (Exception e) {
-            imageView.post(() -> {
-                if (encryptedInfo.equals(imageView.getTag())) {
-                    com.bumptech.glide.Glide.with(imageView)
-                            .load(encryptedInfo)
-                            .centerCrop()
-                            .placeholder(android.R.color.darker_gray)
-                            .into(imageView);
-                }
-            });
+            removeDownloadProgress(messageId);
+            e.printStackTrace();
         }
+    }
+
+    private int getPositionForMessageId(String messageId) {
+        for (int i = 0; i < messageList.size(); i++) {
+            if (messageList.get(i).getMessageId().equals(messageId)) {
+                return i + 1;
+            }
+        }
+        return -1;
     }
 
     private static boolean encryptedDataIsEmpty(String data) {
@@ -1369,9 +1365,13 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             if (mediaData.startsWith("local:")) {
                 startMediaPlayer(mediaData.substring(6), position);
             } else if (mediaData.trim().startsWith("{")) {
+                if (downloadProgressMap.containsKey(messageId)) return;
+
                 org.json.JSONObject json = new org.json.JSONObject(mediaData);
                 String url = json.getString("u");
                 String key = json.getString("k");
+
+                updateDownloadProgress(messageId, 0);
 
                 com.hamraj37.somechat.utils.GitHubStorage.downloadFile(url, new com.hamraj37.somechat.utils.GitHubStorage.DownloadCallback() {
                     @Override
@@ -1390,18 +1390,22 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
 
                     @Override
                     public void onSuccess(byte[] data) {
-                        if (context instanceof android.app.Activity) {
-                            ((android.app.Activity) context).runOnUiThread(() -> removeDownloadProgress(messageId));
-                        }
                         try {
                             byte[] decryptedBytes = com.hamraj37.somechat.utils.EncryptionManager.decryptRaw(data, com.hamraj37.somechat.utils.EncryptionManager.decodeKey(key));
                             com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(context, decryptedBytes, "voice", messageId);
+                            
+                            if (context instanceof android.app.Activity) {
+                                ((android.app.Activity) context).runOnUiThread(() -> removeDownloadProgress(messageId));
+                            }
                             
                             java.io.File tempFile = com.hamraj37.somechat.utils.MediaUtils.getLocalFileForMedia(context, "voice", messageId);
                             if (context instanceof android.app.Activity) {
                                 ((android.app.Activity) context).runOnUiThread(() -> startMediaPlayer(tempFile.getAbsolutePath(), position));
                             }
                         } catch (Exception e) {
+                            if (context instanceof android.app.Activity) {
+                                ((android.app.Activity) context).runOnUiThread(() -> removeDownloadProgress(messageId));
+                            }
                             e.printStackTrace();
                         }
                     }
@@ -1410,6 +1414,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 startMediaPlayer(mediaData, position);
             }
         } catch (Exception e) {
+            removeDownloadProgress(messageId);
             e.printStackTrace();
         }
     }

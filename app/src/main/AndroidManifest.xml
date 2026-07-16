@@ -87,6 +87,7 @@
             android:exported="false"
             android:showForAllUsers="true"
             android:showOnLockScreen="true"
+            android:launchMode="singleTop"
             android:theme="@style/Theme.SomeChat.NoActionBar" />
         <activity
             android:name=".VideoCallActivity"
@@ -130,6 +131,12 @@
             android:name=".ui.settings.CreateThemeActivity"
             android:exported="false"
             android:label="Create Theme"
+            android:theme="@style/Theme.SomeChat.NoActionBar" />
+        <activity
+            android:name=".AIChatActivity"
+            android:exported="false"
+            android:label="SomeChat AI"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.SomeChat.NoActionBar" />
         <service
             android:name=".services.CallService"

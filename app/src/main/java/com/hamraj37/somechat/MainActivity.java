@@ -65,12 +65,6 @@ public class MainActivity extends BaseActivity {
         setupCustomToolbar();
         setupBackPressedHandling();
 
-        if (binding.appBarMain.contentMain.fab != null) {
-            binding.appBarMain.contentMain.fab.setOnClickListener(view -> {
-                Intent intent = new Intent(this, SearchUserActivity.class);
-                startActivity(intent);
-            });
-        }
         NavHostFragment navHostFragment = (NavHostFragment) getSupportFragmentManager().findFragmentById(R.id.nav_host_fragment_content_main);
         assert navHostFragment != null;
         NavController navController = navHostFragment.getNavController();
@@ -81,21 +75,6 @@ public class MainActivity extends BaseActivity {
                     R.id.nav_chats, R.id.nav_status, R.id.nav_calls)
                     .build();
             NavigationUI.setupWithNavController(bottomNavigationView, navController);
-            
-            navController.addOnDestinationChangedListener((controller, destination, arguments) -> {
-                if (binding.appBarMain.contentMain.fab != null) {
-                    if (destination.getId() == R.id.nav_status) {
-                        binding.appBarMain.contentMain.fab.hide();
-                    } else {
-                        binding.appBarMain.contentMain.fab.show();
-                        if (destination.getId() == R.id.nav_chats) {
-                            binding.appBarMain.contentMain.fab.setImageResource(R.drawable.ic_add_user);
-                        } else if (destination.getId() == R.id.nav_calls) {
-                            binding.appBarMain.contentMain.fab.setImageResource(android.R.drawable.ic_menu_call);
-                        }
-                    }
-                }
-            });
         }
 
         setupNavHeader();
@@ -339,6 +318,10 @@ public class MainActivity extends BaseActivity {
             popup.setOnMenuItemClickListener(item -> {
                 if (item.getItemId() == R.id.nav_settings) {
                     Intent intent = new Intent(this, com.hamraj37.somechat.ui.settings.SettingsActivity.class);
+                    startActivity(intent);
+                    return true;
+                } else if (item.getItemId() == R.id.nav_ai_chat) {
+                    Intent intent = new Intent(this, AIChatActivity.class);
                     startActivity(intent);
                     return true;
                 } else if (item.getItemId() == R.id.nav_profile) {
