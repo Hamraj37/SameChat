@@ -7,7 +7,7 @@ import android.widget.ImageButton;
 import android.widget.VideoView;
 import androidx.appcompat.app.AppCompatActivity;
 import com.bumptech.glide.Glide;
-import com.google.android.material.imageview.ShapeableImageView;
+import com.github.chrisbanes.photoview.PhotoView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 public class FullMediaActivity extends BaseActivity {
@@ -23,7 +23,7 @@ public class FullMediaActivity extends BaseActivity {
         windowInsetsController.setAppearanceLightStatusBars(false);
         windowInsetsController.setAppearanceLightNavigationBars(false);
 
-        ShapeableImageView fullImage = findViewById(R.id.full_image);
+        PhotoView fullImage = findViewById(R.id.full_image);
         VideoView fullVideo = findViewById(R.id.full_video);
         CircularProgressIndicator loading = findViewById(R.id.loading_progress);
         ImageButton btnBack = findViewById(R.id.btn_back);
@@ -58,7 +58,7 @@ public class FullMediaActivity extends BaseActivity {
         }
     }
 
-    private void downloadAndDecrypt(String encryptedInfo, String type, ShapeableImageView fullImage, VideoView fullVideo, CircularProgressIndicator loading, String mediaId) {
+    private void downloadAndDecrypt(String encryptedInfo, String type, PhotoView fullImage, VideoView fullVideo, CircularProgressIndicator loading, String mediaId) {
         try {
             org.json.JSONObject json = new org.json.JSONObject(encryptedInfo);
             String url = json.getString("u");
@@ -110,7 +110,7 @@ public class FullMediaActivity extends BaseActivity {
         }
     }
 
-    private void showVideoThumbnail(byte[] videoBytes, ShapeableImageView imageView) {
+    private void showVideoThumbnail(byte[] videoBytes, PhotoView imageView) {
         new Thread(() -> {
             try {
                 android.media.MediaMetadataRetriever retriever = new android.media.MediaMetadataRetriever();
@@ -136,7 +136,7 @@ public class FullMediaActivity extends BaseActivity {
         }).start();
     }
 
-    private void displayMedia(String path, String type, ShapeableImageView fullImage, VideoView fullVideo, CircularProgressIndicator loading) {
+    private void displayMedia(String path, String type, PhotoView fullImage, VideoView fullVideo, CircularProgressIndicator loading) {
         if ("image".equals(type)) {
             fullImage.setVisibility(View.VISIBLE);
             Glide.with(this)

@@ -94,6 +94,7 @@ dependencies {
     implementation libs.zxing.core
     implementation libs.zxing.android
     implementation libs.markwon.core
+    implementation libs.photoview
 
     // Room
     implementation libs.room.runtime
