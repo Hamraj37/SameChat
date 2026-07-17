@@ -18,8 +18,6 @@ import androidx.recyclerview.widget.RecyclerView;
 
 import androidx.appcompat.widget.Toolbar;
 import com.bumptech.glide.Glide;
-import com.google.firebase.auth.FirebaseAuth;
-import com.google.firebase.database.FirebaseDatabase;
 import com.hamraj37.somechat.BaseActivity;
 import com.hamraj37.somechat.R;
 import com.google.android.material.card.MaterialCardView;
@@ -65,7 +63,6 @@ public class ChatBackgroundActivity extends BaseActivity {
         loadCurrent();
 
         findViewById(R.id.btn_choose_custom).setOnClickListener(v -> mGetContent.launch("image/*"));
-        findViewById(R.id.btn_use_profile).setOnClickListener(v -> useProfilePhoto());
         findViewById(R.id.btn_emoji_pattern).setOnClickListener(v -> showEmojiInputDialog());
         findViewById(R.id.btn_remove).setOnClickListener(v -> {
             selectedValue = null;
@@ -106,56 +103,6 @@ public class ChatBackgroundActivity extends BaseActivity {
         }
     }
 
-    private void useProfilePhoto() {
-        String uid = FirebaseAuth.getInstance().getUid();
-        if (uid == null) return;
-
-        Toast.makeText(this, "Loading profile photo...", Toast.LENGTH_SHORT).show();
-        FirebaseDatabase.getInstance().getReference("users").child(uid).child("photoUrl")
-                .get().addOnSuccessListener(snapshot -> {
-                    String url = snapshot.getValue(String.class);
-                    if (url != null && !url.isEmpty()) {
-                        downloadAndSetBackground(url);
-                    } else {
-                        Toast.makeText(this, "No profile photo found", Toast.LENGTH_SHORT).show();
-                    }
-                }).addOnFailureListener(e -> Toast.makeText(this, "Failed to fetch profile photo", Toast.LENGTH_SHORT).show());
-    }
-
-    private void downloadAndSetBackground(String url) {
-        new Thread(() -> {
-            try {
-                File downloadedFile = Glide.with(this)
-                        .asFile()
-                        .load(url)
-                        .submit()
-                        .get();
-                
-                File temp = new File(getFilesDir(), "chat_background_temp.jpg");
-                try (InputStream inputStream = new java.io.FileInputStream(downloadedFile);
-                     FileOutputStream os = new FileOutputStream(temp)) {
-                    byte[] buffer = new byte[1024];
-                    int read;
-                    while ((read = inputStream.read(buffer)) != -1) {
-                        os.write(buffer, 0, read);
-                    }
-                }
-
-                runOnUiThread(() -> {
-                    isCustom = true;
-                    selectedValue = temp.getAbsolutePath();
-                    adapter.setSelectedPos(-1);
-                    Glide.with(this)
-                            .load(temp)
-                            .signature(new com.bumptech.glide.signature.ObjectKey(System.currentTimeMillis()))
-                            .into(previewBackground);
-                    Toast.makeText(this, "Profile photo loaded", Toast.LENGTH_SHORT).show();
-                });
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(this, "Failed to load image: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-            }
-        }).start();
-    }
 
     private void setupPresets() {
         RecyclerView recyclerView = findViewById(R.id.recycler_backgrounds);
