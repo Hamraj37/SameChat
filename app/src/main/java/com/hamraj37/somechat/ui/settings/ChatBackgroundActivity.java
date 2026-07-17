@@ -13,12 +13,13 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
-import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import androidx.appcompat.widget.Toolbar;
 import com.bumptech.glide.Glide;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.firebase.database.FirebaseDatabase;
 import com.hamraj37.somechat.BaseActivity;
 import com.hamraj37.somechat.R;
 import com.google.android.material.card.MaterialCardView;
@@ -35,6 +36,8 @@ public class ChatBackgroundActivity extends BaseActivity {
     private SharedPreferences prefs;
     private String selectedValue = null;
     private boolean isCustom = false;
+    private BackgroundAdapter adapter;
+    private final List<Integer> presets = new ArrayList<>();
 
     private final ActivityResultLauncher<String> mGetContent = registerForActivityResult(new ActivityResultContracts.GetContent(),
             uri -> {
@@ -62,11 +65,13 @@ public class ChatBackgroundActivity extends BaseActivity {
         loadCurrent();
 
         findViewById(R.id.btn_choose_custom).setOnClickListener(v -> mGetContent.launch("image/*"));
+        findViewById(R.id.btn_use_profile).setOnClickListener(v -> useProfilePhoto());
         findViewById(R.id.btn_emoji_pattern).setOnClickListener(v -> showEmojiInputDialog());
         findViewById(R.id.btn_remove).setOnClickListener(v -> {
             selectedValue = null;
             isCustom = false;
-            previewBackground.setImageDrawable(null);
+            adapter.setSelectedPos(-1);
+            previewBackground.setImageResource(R.drawable.bg_glass_main);
         });
 
         findViewById(R.id.btn_apply).setOnClickListener(v -> apply());
@@ -78,20 +83,85 @@ public class ChatBackgroundActivity extends BaseActivity {
             selectedValue = path;
             if (path.startsWith("res:")) {
                 isCustom = false;
-                int resId = getResources().getIdentifier(path.replace("res:", ""), "drawable", getPackageName());
-                if (resId != 0) Glide.with(this).load(resId).into(previewBackground);
+                String resName = path.replace("res:", "");
+                int resId = getResources().getIdentifier(resName, "drawable", getPackageName());
+                if (resId != 0) {
+                    Glide.with(this).load(resId).into(previewBackground);
+                    // Find and select in adapter
+                    for (int i = 0; i < presets.size(); i++) {
+                        if (presets.get(i) == resId) {
+                            adapter.setSelectedPos(i);
+                            break;
+                        }
+                    }
+                }
             } else {
                 isCustom = true;
                 Glide.with(this).load(new File(path)).into(previewBackground);
+                adapter.setSelectedPos(-1);
             }
+        } else {
+            // Default is glassy
+            adapter.setSelectedPos(0);
         }
+    }
+
+    private void useProfilePhoto() {
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+
+        Toast.makeText(this, "Loading profile photo...", Toast.LENGTH_SHORT).show();
+        FirebaseDatabase.getInstance().getReference("users").child(uid).child("photoUrl")
+                .get().addOnSuccessListener(snapshot -> {
+                    String url = snapshot.getValue(String.class);
+                    if (url != null && !url.isEmpty()) {
+                        downloadAndSetBackground(url);
+                    } else {
+                        Toast.makeText(this, "No profile photo found", Toast.LENGTH_SHORT).show();
+                    }
+                }).addOnFailureListener(e -> Toast.makeText(this, "Failed to fetch profile photo", Toast.LENGTH_SHORT).show());
+    }
+
+    private void downloadAndSetBackground(String url) {
+        new Thread(() -> {
+            try {
+                File downloadedFile = Glide.with(this)
+                        .asFile()
+                        .load(url)
+                        .submit()
+                        .get();
+                
+                File temp = new File(getFilesDir(), "chat_background_temp.jpg");
+                try (InputStream inputStream = new java.io.FileInputStream(downloadedFile);
+                     FileOutputStream os = new FileOutputStream(temp)) {
+                    byte[] buffer = new byte[1024];
+                    int read;
+                    while ((read = inputStream.read(buffer)) != -1) {
+                        os.write(buffer, 0, read);
+                    }
+                }
+
+                runOnUiThread(() -> {
+                    isCustom = true;
+                    selectedValue = temp.getAbsolutePath();
+                    adapter.setSelectedPos(-1);
+                    Glide.with(this)
+                            .load(temp)
+                            .signature(new com.bumptech.glide.signature.ObjectKey(System.currentTimeMillis()))
+                            .into(previewBackground);
+                    Toast.makeText(this, "Profile photo loaded", Toast.LENGTH_SHORT).show();
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "Failed to load image: " + e.getMessage(), Toast.LENGTH_SHORT).show());
+            }
+        }).start();
     }
 
     private void setupPresets() {
         RecyclerView recyclerView = findViewById(R.id.recycler_backgrounds);
         recyclerView.setLayoutManager(new LinearLayoutManager(this, LinearLayoutManager.HORIZONTAL, false));
         
-        List<Integer> presets = new ArrayList<>();
+        presets.clear();
         presets.add(R.drawable.bg_glass_main);
         presets.add(R.drawable.bg_chat_whatsapp);
         presets.add(R.drawable.bg_chat_telegram);
@@ -99,7 +169,7 @@ public class ChatBackgroundActivity extends BaseActivity {
         presets.add(R.drawable.bg_chat_dark);
         presets.add(R.drawable.bg_chat_sky);
 
-        BackgroundAdapter adapter = new BackgroundAdapter(presets, resId -> {
+        adapter = new BackgroundAdapter(presets, resId -> {
             isCustom = false;
             selectedValue = "res:" + getResources().getResourceEntryName(resId);
             Glide.with(this).load(resId).into(previewBackground);
@@ -199,6 +269,7 @@ public class ChatBackgroundActivity extends BaseActivity {
 
             isCustom = true;
             selectedValue = file.getAbsolutePath();
+            adapter.setSelectedPos(-1);
             Glide.with(this)
                     .load(file)
                     .signature(new com.bumptech.glide.signature.ObjectKey(System.currentTimeMillis()))
@@ -258,6 +329,7 @@ public class ChatBackgroundActivity extends BaseActivity {
             
             isCustom = true;
             selectedValue = file.getAbsolutePath();
+            adapter.setSelectedPos(-1);
             
             // Use signature to ensure Glide detects file changes
             Glide.with(this)
@@ -304,6 +376,13 @@ public class ChatBackgroundActivity extends BaseActivity {
             this.listener = listener;
         }
 
+        public void setSelectedPos(int pos) {
+            int old = selectedPos;
+            selectedPos = pos;
+            notifyItemChanged(old);
+            if (pos != -1) notifyItemChanged(pos);
+        }
+
         @NonNull
         @Override
         public ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
@@ -314,8 +393,9 @@ public class ChatBackgroundActivity extends BaseActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             int resId = items.get(position);
             holder.image.setImageResource(resId);
+            ((MaterialCardView) holder.itemView).setStrokeWidth(selectedPos == position ? 4 : 0);
             ((MaterialCardView) holder.itemView).setStrokeColor(selectedPos == position ? 
-                    holder.itemView.getContext().getColor(R.color.whatsapp_green) : 0);
+                    com.google.android.material.color.MaterialColors.getColor(holder.itemView, androidx.appcompat.R.attr.colorPrimary) : 0);
 
             holder.itemView.setOnClickListener(v -> {
                 int oldPos = selectedPos;

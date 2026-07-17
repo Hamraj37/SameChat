@@ -105,6 +105,7 @@
     <string name="settings">Settings</string>
     <string name="chat_background">Chat Background</string>
     <string name="change_chat_wallpaper">Change chat wallpaper</string>
+    <string name="use_profile_photo">Use Profile Photo</string>
     <string name="create_theme">Create Theme</string>
     <string name="customize_chat_bubbles">Customize chat bubbles and colors</string>
     <string name="sent_bubble_color">Sent Bubble Color</string>
