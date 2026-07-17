@@ -1,132 +1,157 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
-    android:fitsSystemWindows="true"
-    android:keepScreenOn="true">
+    android:layout_height="match_parent">
 
-    <com.google.android.material.imageview.ShapeableImageView
-        android:id="@+id/call_avatar"
-        android:layout_width="140dp"
-        android:layout_height="140dp"
-        android:layout_marginTop="100dp"
+    <ImageView
+        android:id="@+id/main_background"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
         android:scaleType="centerCrop"
-        android:src="@mipmap/ic_launcher_round"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:shapeAppearanceOverlay="@style/CircleAppearance" />
+        android:src="@drawable/bg_glass_main"
+        android:contentDescription="@null" />
 
-    <TextView
-        android:id="@+id/call_name"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
-        android:textAppearance="?attr/textAppearanceHeadlineMedium"
-        android:textColor="?attr/colorOnSurface"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/call_avatar"
-        tools:text="User Name" />
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:fitsSystemWindows="true"
+        android:keepScreenOn="true">
 
-    <TextView
-        android:id="@+id/call_status"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:text="Calling..."
-        android:textAppearance="?attr/textAppearanceBodyLarge"
-        android:textColor="?attr/colorOnSurface"
-        android:alpha="0.7"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/call_name" />
+        <com.google.android.material.imageview.ShapeableImageView
+            android:id="@+id/call_avatar"
+            android:layout_width="140dp"
+            android:layout_height="140dp"
+            android:layout_marginTop="100dp"
+            android:scaleType="centerCrop"
+            android:src="@mipmap/ic_launcher_round"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:shapeAppearanceOverlay="@style/CircleAppearance" />
 
-    <TextView
-        android:id="@+id/call_timer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:textAppearance="?attr/textAppearanceTitleLarge"
-        android:textColor="?attr/colorPrimary"
-        android:textStyle="bold"
-        android:visibility="gone"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/call_status"
-        tools:text="00:01"
-        tools:visibility="visible" />
-
-    <LinearLayout
-        android:id="@+id/controls_container"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="40dp"
-        android:orientation="horizontal"
-        app:layout_constraintBottom_toTopOf="@+id/btn_decline"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent">
-
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/btn_mute"
+        <TextView
+            android:id="@+id/call_name"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="12dp"
-            android:contentDescription="Mute"
-            android:src="@android:drawable/ic_lock_silent_mode"
-            app:backgroundTint="?attr/colorSurfaceVariant"
-            app:fabCustomSize="56dp"
-            app:shapeAppearanceOverlay="@style/CircleAppearance"
-            app:tint="?attr/colorOnSurfaceVariant" />
+            android:layout_marginTop="24dp"
+            android:textAppearance="?attr/textAppearanceHeadlineMedium"
+            android:textColor="?attr/colorOnSurface"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/call_avatar"
+            tools:text="User Name" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/btn_speaker"
+        <TextView
+            android:id="@+id/call_status"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_margin="12dp"
-            android:contentDescription="Speaker"
-            android:src="@android:drawable/stat_sys_speakerphone"
-            app:backgroundTint="?attr/colorSurfaceVariant"
-            app:fabCustomSize="56dp"
+            android:layout_marginTop="8dp"
+            android:text="Calling..."
+            android:textAppearance="?attr/textAppearanceBodyLarge"
+            android:textColor="?attr/colorOnSurface"
+            android:alpha="0.7"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/call_name" />
+
+        <TextView
+            android:id="@+id/call_timer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:textAppearance="?attr/textAppearanceTitleLarge"
+            android:textColor="?attr/colorPrimary"
+            android:textStyle="bold"
+            android:visibility="gone"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/call_status"
+            tools:text="00:01"
+            tools:visibility="visible" />
+
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="40dp"
+            app:cardCornerRadius="32dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/glass_border"
+            app:cardBackgroundColor="@color/glass_white"
+            app:layout_constraintBottom_toTopOf="@+id/btn_decline"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent">
+
+            <LinearLayout
+                android:id="@+id/controls_container"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:padding="8dp">
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/btn_mute"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="8dp"
+                    android:contentDescription="Mute"
+                    android:src="@android:drawable/ic_lock_silent_mode"
+                    app:backgroundTint="?attr/colorSurfaceVariant"
+                    app:fabCustomSize="56dp"
+                    app:shapeAppearanceOverlay="@style/CircleAppearance"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+                <com.google.android.material.floatingactionbutton.FloatingActionButton
+                    android:id="@+id/btn_speaker"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="8dp"
+                    android:contentDescription="Speaker"
+                    android:src="@android:drawable/stat_sys_speakerphone"
+                    app:backgroundTint="?attr/colorSurfaceVariant"
+                    app:fabCustomSize="56dp"
+                    app:shapeAppearanceOverlay="@style/CircleAppearance"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btn_decline"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="80dp"
+            android:contentDescription="Decline"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:backgroundTint="?attr/colorError"
+            app:fabCustomSize="64dp"
             app:shapeAppearanceOverlay="@style/CircleAppearance"
-            app:tint="?attr/colorOnSurfaceVariant" />
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/btn_accept"
+            app:layout_constraintHorizontal_chainStyle="packed"
+            app:layout_constraintStart_toStartOf="parent"
+            app:tint="@color/white" />
 
-    </LinearLayout>
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/btn_accept"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="40dp"
+            android:contentDescription="Accept"
+            android:src="@android:drawable/ic_menu_call"
+            android:visibility="gone"
+            app:backgroundTint="@color/whatsapp_green"
+            app:fabCustomSize="64dp"
+            app:shapeAppearanceOverlay="@style/CircleAppearance"
+            app:layout_constraintBottom_toBottomOf="@+id/btn_decline"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toEndOf="@+id/btn_decline"
+            app:layout_constraintTop_toTopOf="@+id/btn_decline"
+            app:tint="@color/white" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/btn_decline"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="80dp"
-        android:contentDescription="Decline"
-        android:src="@android:drawable/ic_menu_close_clear_cancel"
-        app:backgroundTint="?attr/colorError"
-        app:fabCustomSize="64dp"
-        app:shapeAppearanceOverlay="@style/CircleAppearance"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toStartOf="@+id/btn_accept"
-        app:layout_constraintHorizontal_chainStyle="packed"
-        app:layout_constraintStart_toStartOf="parent"
-        app:tint="@color/white" />
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/btn_accept"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="40dp"
-        android:contentDescription="Accept"
-        android:src="@android:drawable/ic_menu_call"
-        android:visibility="gone"
-        app:backgroundTint="@color/whatsapp_green"
-        app:fabCustomSize="64dp"
-        app:shapeAppearanceOverlay="@style/CircleAppearance"
-        app:layout_constraintBottom_toBottomOf="@+id/btn_decline"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toEndOf="@+id/btn_decline"
-        app:layout_constraintTop_toTopOf="@+id/btn_decline"
-        app:tint="@color/white" />
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</FrameLayout>

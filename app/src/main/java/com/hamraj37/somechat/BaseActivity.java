@@ -46,6 +46,18 @@ public class BaseActivity extends AppCompatActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Enable Edge-to-Edge: Draw under status and navigation bars
+        androidx.core.view.WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        
+        // Handle status bar icon colors based on theme
+        boolean isNightMode = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        androidx.core.view.WindowInsetsControllerCompat windowInsetsController = 
+            new androidx.core.view.WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView());
+        windowInsetsController.setAppearanceLightStatusBars(!isNightMode);
+        windowInsetsController.setAppearanceLightNavigationBars(!isNightMode);
+
         messageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {

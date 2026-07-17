@@ -48,9 +48,6 @@ public class ChatBackgroundActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_chat_background);
 
-        boolean isNightMode = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(!isNightMode);
-
         prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE);
         previewBackground = findViewById(R.id.preview_background);
         

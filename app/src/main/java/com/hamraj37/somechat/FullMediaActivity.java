@@ -10,7 +10,7 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.imageview.ShapeableImageView;
 import com.google.android.material.progressindicator.CircularProgressIndicator;
 
-public class FullMediaActivity extends AppCompatActivity {
+public class FullMediaActivity extends BaseActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

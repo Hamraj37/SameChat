@@ -41,9 +41,6 @@ public class CreateThemeActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_create_theme);
 
-        boolean isNightMode = (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES;
-        new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(!isNightMode);
-
         prefs = getSharedPreferences("app_settings", Context.MODE_PRIVATE);
 
         cardSent = findViewById(R.id.card_sent);

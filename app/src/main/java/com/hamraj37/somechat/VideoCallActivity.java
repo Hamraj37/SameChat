@@ -99,7 +99,7 @@ public class VideoCallActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        new WindowInsetsControllerCompat(getWindow(), getWindow().getDecorView()).setAppearanceLightStatusBars(false);
+
         setContentView(R.layout.activity_video_call);
 
         receiverId = getIntent().getStringExtra("uid");

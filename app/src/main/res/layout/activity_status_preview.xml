@@ -11,7 +11,8 @@
         android:id="@+id/preview_image"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="fitCenter" />
+        android:scaleType="fitCenter"
+        android:contentDescription="@null" />
 
     <VideoView
         android:id="@+id/preview_video"
@@ -45,10 +46,6 @@
             android:layout_height="0dp"
             android:layout_weight="1" />
 
-        <!-- Placeholder Action Icons -->
-
-
-
     </LinearLayout>
 
 
@@ -62,31 +59,40 @@
         android:background="@drawable/bg_status_reply_gradient"
         app:layout_constraintBottom_toBottomOf="parent">
 
-        <LinearLayout
+        <com.google.android.material.card.MaterialCardView
             android:layout_width="0dp"
             android:layout_height="48dp"
             android:layout_weight="1"
-            android:background="@drawable/bg_caption_pill"
-            android:orientation="horizontal"
-            android:paddingHorizontal="16dp"
-            android:gravity="center_vertical">
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:strokeWidth="1dp"
+            app:strokeColor="@color/glass_border"
+            app:cardBackgroundColor="@color/glass_white">
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:orientation="horizontal"
+                android:paddingHorizontal="16dp"
+                android:gravity="center_vertical">
 
-            <EditText
-                android:id="@+id/caption_input"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:hint="@string/add_a_caption"
-                android:textColor="?attr/colorOnSurface"
-                android:textColorHint="?attr/colorOutline"
-                android:textSize="16sp"
-                android:maxLines="4"
-                android:inputType="textCapSentences|textMultiLine"
-                android:importantForAutofill="no" />
+                <EditText
+                    android:id="@+id/caption_input"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:background="@android:color/transparent"
+                    android:hint="@string/add_a_caption"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="?attr/colorOutline"
+                    android:textSize="16sp"
+                    android:maxLines="4"
+                    android:inputType="textCapSentences|textMultiLine"
+                    android:importantForAutofill="no" />
 
-        </LinearLayout>
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
             android:id="@+id/btn_post"
