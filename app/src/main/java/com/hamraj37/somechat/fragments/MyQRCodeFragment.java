@@ -122,15 +122,16 @@ public class MyQRCodeFragment extends Fragment {
 
             // Draw logo in the center
             android.graphics.Canvas canvas = new android.graphics.Canvas(bitmap);
-            int logoWidth = width / 5;
-            int logoHeight = height / 5;
+            int logoWidth = width / 6;
+            int logoHeight = height / 6;
             int left = (width - logoWidth) / 2;
             int top = (height - logoHeight) / 2;
             
-            // White background for logo area
-            android.graphics.Paint paint = new android.graphics.Paint();
-            paint.setColor(android.graphics.Color.WHITE);
-            canvas.drawRect(left - 10, top - 10, left + logoWidth + 10, top + logoHeight + 10, paint);
+            // Rounded square background for logo area
+            android.graphics.Paint paint = new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            paint.setColor(android.graphics.Color.parseColor("#E1F5FE")); // Light blue like screenshot
+            android.graphics.RectF rect = new android.graphics.RectF(left - 15, top - 15, left + logoWidth + 15, top + logoHeight + 15);
+            canvas.drawRoundRect(rect, 30, 30, paint);
             
             Bitmap scaledLogo = Bitmap.createScaledBitmap(logo, logoWidth, logoHeight, true);
             canvas.drawBitmap(scaledLogo, left, top, null);

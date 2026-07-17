@@ -4,27 +4,27 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fillViewport="true">
+    android:fillViewport="true"
+    android:background="@android:color/transparent">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="vertical"
-        android:padding="32dp"
-        android:background="#F5F5F5">
+        android:padding="24dp">
 
         <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="48dp">
+            android:layout_marginTop="60dp">
 
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="40dp"
-                app:cardCornerRadius="24dp"
-                app:cardElevation="4dp"
+                android:layout_marginTop="50dp"
+                app:cardCornerRadius="40dp"
+                app:cardElevation="2dp"
                 app:strokeWidth="0dp"
                 app:cardBackgroundColor="@android:color/white">
 
@@ -33,18 +33,19 @@
                     android:layout_height="wrap_content"
                     android:gravity="center"
                     android:orientation="vertical"
-                    android:paddingBottom="32dp"
-                    android:paddingTop="50dp"
-                    android:paddingHorizontal="32dp">
+                    android:paddingBottom="48dp"
+                    android:paddingTop="64dp"
+                    android:paddingHorizontal="24dp">
 
                     <TextView
                         android:id="@+id/user_name"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:textAppearance="?attr/textAppearanceTitleLarge"
+                        android:textAppearance="?attr/textAppearanceHeadlineSmall"
                         android:textColor="@android:color/black"
                         android:textStyle="bold"
-                        tools:text="HAMRAJ" />
+                        android:textAllCaps="true"
+                        tools:text="HAMRAJ 37" />
 
                     <TextView
                         android:layout_width="wrap_content"
@@ -52,12 +53,12 @@
                         android:layout_marginTop="4dp"
                         android:text="@string/somechat_contact"
                         android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="@android:color/darker_gray" />
+                        android:textColor="#BDBDBD" />
 
                     <ImageView
                         android:id="@+id/qr_image"
-                        android:layout_width="250dp"
-                        android:layout_height="250dp"
+                        android:layout_width="260dp"
+                        android:layout_height="260dp"
                         android:layout_marginTop="24dp"
                         android:contentDescription="@string/qr_code" />
 
@@ -66,12 +67,12 @@
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
-                android:layout_width="80dp"
-                android:layout_height="80dp"
+                android:layout_width="100dp"
+                android:layout_height="100dp"
                 android:layout_gravity="top|center_horizontal"
-                app:cardCornerRadius="40dp"
-                app:cardElevation="6dp"
-                app:strokeWidth="2dp"
+                app:cardCornerRadius="50dp"
+                app:cardElevation="4dp"
+                app:strokeWidth="4dp"
                 app:strokeColor="@android:color/white">
 
                 <ImageView
@@ -88,13 +89,13 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="32dp"
+            android:layout_marginTop="40dp"
             android:gravity="center"
-            android:paddingHorizontal="24dp"
+            android:paddingHorizontal="32dp"
             android:text="@string/qr_private_notice"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:alpha="0.7" />
+            android:textColor="#808080"
+            android:lineHeight="20dp" />
 
     </LinearLayout>
 </ScrollView>

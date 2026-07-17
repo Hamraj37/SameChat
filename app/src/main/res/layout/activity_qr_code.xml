@@ -20,25 +20,30 @@
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@android:color/transparent">
+            android:background="@android:color/transparent"
+            app:elevation="0dp">
 
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
-                app:navigationIcon="@drawable/abc_ic_ab_back_material"
+                app:navigationIcon="?attr/homeAsUpIndicator"
                 app:title="@string/qr_code"
-                app:menu="@menu/qr_menu" />
+                app:menu="@menu/qr_menu"
+                app:titleCentered="false" />
 
             <com.google.android.material.tabs.TabLayout
                 android:id="@+id/qr_tabs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="@android:color/transparent"
-                app:tabIndicatorFullWidth="true"
-                app:tabIndicatorColor="?attr/colorPrimary"
-                app:tabSelectedTextColor="?attr/colorPrimary"
-                app:tabTextColor="?attr/colorOnSurfaceVariant">
+                app:tabIndicatorFullWidth="false"
+                app:tabIndicatorHeight="3dp"
+                app:tabIndicatorColor="#008080"
+                app:tabSelectedTextColor="#008080"
+                app:tabTextColor="#757575"
+                app:tabRippleColor="@android:color/transparent"
+                app:tabTextAppearance="@style/TextAppearance.Material3.TitleSmall">
 
                 <com.google.android.material.tabs.TabItem
                     android:layout_width="wrap_content"

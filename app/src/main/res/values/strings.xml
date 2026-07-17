@@ -96,6 +96,7 @@
     <string name="somechat_contact">SomeChat contact</string>
     <string name="qr_private_notice">Your QR code is private. If you share it with someone, they can scan it with their SomeChat camera to add you as a contact.</string>
     <string name="align_qr_notice">Align QR code within the frame to scan</string>
+    <string name="scan_barcode_hint">Place a barcode inside the viewfinder rectangle to scan it.</string>
     <string name="share">Share</string>
     <string name="more">More</string>
     <string name="invited_by">Invited by %1$s</string>

@@ -25,6 +25,11 @@ public class ScanQRCodeFragment extends Fragment {
         View view = inflater.inflate(R.layout.fragment_scan_qr, container, false);
         barcodeView = view.findViewById(R.id.barcode_scanner);
         
+        // Hide default status text to use our custom overlay
+        if (barcodeView.getStatusView() != null) {
+            barcodeView.getStatusView().setVisibility(View.GONE);
+        }
+        
         barcodeView.decodeContinuous(result -> {
             if (result.getText() != null) {
                 String scannedUid = result.getText();
