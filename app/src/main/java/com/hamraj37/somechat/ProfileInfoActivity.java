@@ -24,6 +24,7 @@ import com.google.firebase.auth.FirebaseUser;
 import com.google.firebase.auth.UserProfileChangeRequest;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
 import com.hamraj37.somechat.adapters.HighlightAdapter;
@@ -56,6 +57,9 @@ public class ProfileInfoActivity extends BaseActivity {
     private String currentPhotoUrl;
     private List<User> friendsList = new ArrayList<>();
     private UserAdapter friendsAdapter;
+    private int currentFriendsTab = 0; // 0: Friends, 1: Requests, 2: Pending
+    private ValueEventListener friendsListener;
+    private DatabaseReference friendsRef;
 
     private final androidx.activity.result.ActivityResultLauncher<String> pickImageLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(),
@@ -100,8 +104,9 @@ public class ProfileInfoActivity extends BaseActivity {
             binding.qrCodeButton.setVisibility(View.VISIBLE);
             binding.callActionsContainer.setVisibility(View.GONE);
             binding.friendsCard.setVisibility(View.VISIBLE);
+            setupFriendsTabs();
             setupFriendsRecyclerView();
-            loadFriends();
+            loadFriendsData();
         }
 
         loadUserProfile();
@@ -119,6 +124,18 @@ public class ProfileInfoActivity extends BaseActivity {
             binding.mediaCard.setVisibility(View.GONE);
             binding.pinnedMessagesCard.setVisibility(View.GONE);
         }
+    }
+
+    private void setupFriendsTabs() {
+        binding.friendsTabs.addOnTabSelectedListener(new com.google.android.material.tabs.TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(com.google.android.material.tabs.TabLayout.Tab tab) {
+                currentFriendsTab = tab.getPosition();
+                loadFriendsData();
+            }
+            @Override public void onTabUnselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+            @Override public void onTabReselected(com.google.android.material.tabs.TabLayout.Tab tab) {}
+        });
     }
 
     private void setupFriendsRecyclerView() {
@@ -149,37 +166,107 @@ public class ProfileInfoActivity extends BaseActivity {
             }
 
             @Override
+            public void onAcceptClick(User user) {
+                acceptFriendRequestFrom(user.getUid());
+            }
+
+            @Override
+            public void onDeclineClick(User user) {
+                declineFriendRequestFrom(user.getUid());
+            }
+
+            @Override
+            public void onCancelClick(User user) {
+                cancelSentRequestTo(user.getUid());
+            }
+
+            @Override
             public void onNewGroupClick() {}
         });
-        friendsAdapter.setShowRemoveButton(true);
         binding.friendsRecycler.setAdapter(friendsAdapter);
     }
 
-    private void loadFriends() {
+    private void acceptFriendRequestFrom(String requesterUid) {
+        String myUid = FirebaseAuth.getInstance().getUid();
+        if (myUid == null || requesterUid == null) return;
+        
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("/friends/" + myUid + "/" + requesterUid, true);
+        updates.put("/friends/" + requesterUid + "/" + myUid, true);
+        updates.put("/friendRequests/" + myUid + "/" + requesterUid, null);
+        updates.put("/sentFriendRequests/" + requesterUid + "/" + myUid, null);
+        
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates)
+                .addOnSuccessListener(aVoid -> Toast.makeText(this, "Accepted", Toast.LENGTH_SHORT).show());
+    }
+
+    private void declineFriendRequestFrom(String requesterUid) {
+        String myUid = FirebaseAuth.getInstance().getUid();
+        if (myUid == null || requesterUid == null) return;
+        
+        FirebaseDatabase.getInstance().getReference("friendRequests").child(myUid).child(requesterUid).removeValue();
+    }
+
+    private void cancelSentRequestTo(String targetUid) {
+        String myUid = FirebaseAuth.getInstance().getUid();
+        if (myUid == null || targetUid == null) return;
+        
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("/friendRequests/" + targetUid + "/" + myUid, null);
+        updates.put("/sentFriendRequests/" + myUid + "/" + targetUid, null);
+        
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates);
+    }
+
+    private void loadFriendsData() {
         String myUid = FirebaseAuth.getInstance().getUid();
         if (myUid == null) return;
 
-        FirebaseDatabase.getInstance().getReference("friends").child(myUid)
-                .addValueEventListener(new ValueEventListener() {
-                    @Override
-                    public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        List<String> friendUids = new ArrayList<>();
-                        for (DataSnapshot ds : snapshot.getChildren()) {
-                            friendUids.add(ds.getKey());
-                        }
-                        fetchFriendDetails(friendUids);
-                    }
+        if (friendsListener != null && friendsRef != null) {
+            friendsRef.removeEventListener(friendsListener);
+        }
 
-                    @Override
-                    public void onCancelled(@NonNull DatabaseError error) {}
-                });
+        String path = "friends";
+        if (currentFriendsTab == 1) path = "friendRequests";
+        else if (currentFriendsTab == 2) path = "sentFriendRequests";
+
+        friendsRef = FirebaseDatabase.getInstance().getReference(path).child(myUid);
+        friendsListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                List<String> uids = new ArrayList<>();
+                for (DataSnapshot ds : snapshot.getChildren()) {
+                    uids.add(ds.getKey());
+                }
+                
+                friendsAdapter.setShowRemoveButton(currentFriendsTab == 0);
+                friendsAdapter.setShowRequestButtons(currentFriendsTab == 1);
+                friendsAdapter.setShowCancelButton(currentFriendsTab == 2);
+                
+                fetchFriendDetails(uids);
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        friendsRef.addValueEventListener(friendsListener);
     }
 
     private void fetchFriendDetails(List<String> uids) {
+        final int fetchTab = currentFriendsTab;
+        
+        // Clear list immediately when switching tabs or loading new data
+        friendsList.clear();
+        friendsAdapter.notifyDataSetChanged();
+
         if (uids.isEmpty()) {
-            friendsList.clear();
-            friendsAdapter.notifyDataSetChanged();
             binding.friendsCount.setText("0");
+            
+            String noItemsText = getString(R.string.no_friends_yet);
+            if (fetchTab == 1) noItemsText = getString(R.string.no_requests);
+            else if (fetchTab == 2) noItemsText = getString(R.string.no_pending);
+            
+            binding.noFriendsText.setText(noItemsText);
             binding.noFriendsText.setVisibility(View.VISIBLE);
             binding.friendsRecycler.setVisibility(View.GONE);
             return;
@@ -197,6 +284,8 @@ public class ProfileInfoActivity extends BaseActivity {
                     .addListenerForSingleValueEvent(new ValueEventListener() {
                         @Override
                         public void onDataChange(@NonNull DataSnapshot snapshot) {
+                            if (currentFriendsTab != fetchTab) return;
+
                             User user = snapshot.getValue(User.class);
                             if (user != null) {
                                 user.setUid(snapshot.getKey());
@@ -213,6 +302,7 @@ public class ProfileInfoActivity extends BaseActivity {
 
                         @Override
                         public void onCancelled(@NonNull DatabaseError error) {
+                            if (currentFriendsTab != fetchTab) return;
                             count[0]++;
                             if (count[0] == total) {
                                 friendsList.clear();
@@ -508,10 +598,11 @@ public class ProfileInfoActivity extends BaseActivity {
         String myUid = FirebaseAuth.getInstance().getUid();
         if (myUid == null || targetUid == null) return;
 
-        FirebaseDatabase.getInstance().getReference("friendRequests")
-                .child(targetUid)
-                .child(myUid)
-                .removeValue()
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("/friendRequests/" + targetUid + "/" + myUid, null);
+        updates.put("/sentFriendRequests/" + myUid + "/" + targetUid, null);
+
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates)
                 .addOnSuccessListener(aVoid -> Toast.makeText(this, "Friend request cancelled", Toast.LENGTH_SHORT).show());
     }
 
@@ -546,10 +637,12 @@ public class ProfileInfoActivity extends BaseActivity {
     private void sendFriendRequest() {
         String myUid = FirebaseAuth.getInstance().getUid();
         if (myUid == null || targetUid == null) return;
-        FirebaseDatabase.getInstance().getReference("friendRequests")
-                .child(targetUid)
-                .child(myUid)
-                .setValue("pending")
+        
+        Map<String, Object> updates = new HashMap<>();
+        updates.put("/friendRequests/" + targetUid + "/" + myUid, "pending");
+        updates.put("/sentFriendRequests/" + myUid + "/" + targetUid, "pending");
+        
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates)
                 .addOnSuccessListener(aVoid -> Toast.makeText(this, "Friend request sent", Toast.LENGTH_SHORT).show());
     }
 
@@ -560,6 +653,7 @@ public class ProfileInfoActivity extends BaseActivity {
         updates.put("/friends/" + myUid + "/" + targetUid, true);
         updates.put("/friends/" + targetUid + "/" + myUid, true);
         updates.put("/friendRequests/" + myUid + "/" + targetUid, null);
+        updates.put("/sentFriendRequests/" + targetUid + "/" + myUid, null);
         FirebaseDatabase.getInstance().getReference().updateChildren(updates)
                 .addOnSuccessListener(aVoid -> Toast.makeText(this, "Friend request accepted", Toast.LENGTH_SHORT).show());
     }
@@ -1138,6 +1232,9 @@ public class ProfileInfoActivity extends BaseActivity {
     @Override
     public void onDestroy() {
         super.onDestroy();
+        if (friendsRef != null && friendsListener != null) {
+            friendsRef.removeEventListener(friendsListener);
+        }
         binding = null;
     }
 }

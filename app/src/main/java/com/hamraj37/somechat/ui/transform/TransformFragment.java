@@ -213,17 +213,22 @@ public class TransformFragment extends Fragment {
 
     private void acceptFriendRequest(String myUid, String requesterUid) {
         // 1. Add to both users' friends list
-        FirebaseDatabase.getInstance().getReference("friends").child(myUid).child(requesterUid).setValue(true)
-                .addOnSuccessListener(aVoid -> {
-                    FirebaseDatabase.getInstance().getReference("friends").child(requesterUid).child(myUid).setValue(true);
-                    
-                    // 2. Remove from requests
-                    FirebaseDatabase.getInstance().getReference("friendRequests").child(myUid).child(requesterUid).removeValue();
-                });
+        java.util.Map<String, Object> updates = new java.util.HashMap<>();
+        updates.put("/friends/" + myUid + "/" + requesterUid, true);
+        updates.put("/friends/" + requesterUid + "/" + myUid, true);
+        
+        // 2. Remove from requests (incoming for me, outgoing for them)
+        updates.put("/friendRequests/" + myUid + "/" + requesterUid, null);
+        updates.put("/sentFriendRequests/" + requesterUid + "/" + myUid, null);
+
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates);
     }
 
     private void declineFriendRequest(String myUid, String requesterUid) {
-        FirebaseDatabase.getInstance().getReference("friendRequests").child(myUid).child(requesterUid).removeValue();
+        java.util.Map<String, Object> updates = new java.util.HashMap<>();
+        updates.put("/friendRequests/" + myUid + "/" + requesterUid, null);
+        updates.put("/sentFriendRequests/" + requesterUid + "/" + myUid, null);
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates);
     }
 
     @Override

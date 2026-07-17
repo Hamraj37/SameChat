@@ -23,12 +23,17 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final OnUserClickListener listener;
     private boolean showActions = false;
     private boolean showRemoveButton = false;
+    private boolean showRequestButtons = false;
+    private boolean showCancelButton = false;
     private java.util.Map<String, Boolean> adminsMap = null;
     private java.util.Map<String, Boolean> likesMap = null;
 
     public interface OnUserClickListener {
         void onUserClick(User user);
         default void onRemoveClick(User user) {}
+        default void onAcceptClick(User user) {}
+        default void onDeclineClick(User user) {}
+        default void onCancelClick(User user) {}
         void onNewGroupClick();
     }
 
@@ -44,6 +49,16 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void setShowRemoveButton(boolean show) {
         this.showRemoveButton = show;
+        notifyDataSetChanged();
+    }
+
+    public void setShowRequestButtons(boolean show) {
+        this.showRequestButtons = show;
+        notifyDataSetChanged();
+    }
+
+    public void setShowCancelButton(boolean show) {
+        this.showCancelButton = show;
         notifyDataSetChanged();
     }
 
@@ -103,9 +118,22 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         
         String myUid = com.google.firebase.auth.FirebaseAuth.getInstance().getUid();
-        if (user.getUid() != null && user.getUid().equals(myUid)) {
+        
+        if (showRequestButtons) {
+            userHolder.email.setText("Sent you a friend request");
+            userHolder.email.setVisibility(View.VISIBLE);
+            userHolder.email.setTextColor(com.google.android.material.color.MaterialColors.getColor(userHolder.itemView.getContext(), androidx.appcompat.R.attr.colorPrimary, android.graphics.Color.BLUE));
+            userHolder.email.setAlpha(1.0f);
+        } else if (showCancelButton) {
+            userHolder.email.setText("Waiting for approval...");
+            userHolder.email.setVisibility(View.VISIBLE);
+            userHolder.email.setTextColor(com.google.android.material.color.MaterialColors.getColor(userHolder.itemView.getContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, android.graphics.Color.GRAY));
+            userHolder.email.setAlpha(0.6f);
+        } else if (user.getUid() != null && user.getUid().equals(myUid)) {
             userHolder.email.setText(user.getEmail());
             userHolder.email.setVisibility(View.VISIBLE);
+            userHolder.email.setAlpha(0.7f);
+            userHolder.email.setTextColor(com.google.android.material.color.MaterialColors.getColor(userHolder.itemView.getContext(), com.google.android.material.R.attr.colorOnSurfaceVariant, android.graphics.Color.GRAY));
         } else {
             userHolder.email.setVisibility(View.GONE);
         }
@@ -141,10 +169,40 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             }
         });
 
+        if (userHolder.itemCard != null) {
+            if (showRequestButtons) {
+                userHolder.itemCard.setCardBackgroundColor(android.graphics.Color.WHITE);
+                userHolder.itemCard.setStrokeWidth((int) (1 * userHolder.itemView.getResources().getDisplayMetrics().density));
+                userHolder.itemCard.setStrokeColor(android.graphics.Color.parseColor("#DDDDDD"));
+                userHolder.itemCard.setCardElevation(2 * userHolder.itemView.getResources().getDisplayMetrics().density);
+            } else {
+                userHolder.itemCard.setCardBackgroundColor(android.graphics.Color.TRANSPARENT);
+                userHolder.itemCard.setStrokeWidth(0);
+                userHolder.itemCard.setCardElevation(0);
+            }
+        }
+
         if (userHolder.removeButton != null) {
             userHolder.removeButton.setVisibility(showRemoveButton ? View.VISIBLE : View.GONE);
             userHolder.removeButton.setOnClickListener(v -> {
                 if (listener != null) listener.onRemoveClick(user);
+            });
+        }
+
+        if (userHolder.requestActions != null) {
+            userHolder.requestActions.setVisibility(showRequestButtons ? View.VISIBLE : View.GONE);
+            userHolder.btnAccept.setOnClickListener(v -> {
+                if (listener != null) listener.onAcceptClick(user);
+            });
+            userHolder.btnDecline.setOnClickListener(v -> {
+                if (listener != null) listener.onDeclineClick(user);
+            });
+        }
+
+        if (userHolder.cancelButton != null) {
+            userHolder.cancelButton.setVisibility(showCancelButton ? View.VISIBLE : View.GONE);
+            userHolder.cancelButton.setOnClickListener(v -> {
+                if (listener != null) listener.onCancelClick(user);
             });
         }
     }
@@ -182,6 +240,8 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         TextView adminBadge;
         ImageView likeIcon;
         View removeButton;
+        View requestActions, btnAccept, btnDecline, cancelButton;
+        com.google.android.material.card.MaterialCardView itemCard;
 
         public UserViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -192,6 +252,11 @@ public class UserAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
             adminBadge = itemView.findViewById(R.id.admin_badge);
             likeIcon = itemView.findViewById(R.id.status_like_icon);
             removeButton = itemView.findViewById(R.id.btn_remove_user);
+            requestActions = itemView.findViewById(R.id.request_actions);
+            btnAccept = itemView.findViewById(R.id.btn_accept_request);
+            btnDecline = itemView.findViewById(R.id.btn_decline_request);
+            cancelButton = itemView.findViewById(R.id.btn_cancel_request);
+            itemCard = itemView.findViewById(R.id.user_item_card);
         }
     }
 }

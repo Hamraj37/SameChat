@@ -1440,11 +1440,11 @@ public class ChatActivity extends BaseActivity {
     }
 
     private void sendFriendRequest() {
-        DatabaseReference requestRef = FirebaseDatabase.getInstance().getReference("friendRequests")
-                .child(receiverId)
-                .child(senderId);
+        java.util.Map<String, Object> updates = new java.util.HashMap<>();
+        updates.put("/friendRequests/" + receiverId + "/" + senderId, "pending");
+        updates.put("/sentFriendRequests/" + senderId + "/" + receiverId, "pending");
 
-        requestRef.setValue("pending").addOnCompleteListener(task -> {
+        FirebaseDatabase.getInstance().getReference().updateChildren(updates).addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
                 android.widget.Toast.makeText(this, "Friend request sent!", android.widget.Toast.LENGTH_SHORT).show();
                 // Lock the UI after sending request
