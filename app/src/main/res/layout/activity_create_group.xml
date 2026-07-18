@@ -116,6 +116,10 @@
             android:layout_gravity="bottom|end"
             android:layout_margin="16dp"
             android:text="Create"
+            app:elevation="0dp"
+            app:backgroundTint="@color/glass_white"
+            android:textColor="?attr/colorPrimary"
+            app:iconTint="?attr/colorPrimary"
             app:icon="@android:drawable/ic_menu_send" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>

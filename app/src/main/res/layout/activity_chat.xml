@@ -474,8 +474,12 @@
                         android:src="@android:drawable/ic_btn_speak_now"
                         app:fabCustomSize="48dp"
                         app:elevation="0dp"
-                        app:tint="?attr/colorOnPrimary"
-                        app:backgroundTint="?attr/colorPrimary" />
+                        app:pressedTranslationZ="0dp"
+                        app:borderWidth="0dp"
+                        android:stateListAnimator="@null"
+                        android:outlineProvider="none"
+                        app:tint="?attr/colorPrimary"
+                        app:backgroundTint="@color/glass_green" />
 
                 </LinearLayout>
             </LinearLayout>

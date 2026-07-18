@@ -39,6 +39,11 @@
         android:layout_margin="16dp"
         android:contentDescription="@string/menu_calls"
         app:srcCompat="@android:drawable/ic_menu_call"
+        app:elevation="0dp"
+        app:pressedTranslationZ="0dp"
+        app:borderWidth="0dp"
+        android:stateListAnimator="@null"
+        android:outlineProvider="none"
         app:tint="@null" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

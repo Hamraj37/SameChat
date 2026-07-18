@@ -56,6 +56,10 @@
             android:layout_gravity="bottom|end"
             android:layout_margin="16dp"
             android:text="Add"
+            app:elevation="0dp"
+            app:backgroundTint="@color/glass_white"
+            android:textColor="?attr/colorPrimary"
+            app:iconTint="?attr/colorPrimary"
             app:icon="@android:drawable/ic_input_add" />
 
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
