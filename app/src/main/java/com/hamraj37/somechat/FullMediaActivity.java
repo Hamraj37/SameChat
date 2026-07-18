@@ -12,6 +12,8 @@ import com.google.android.material.progressindicator.CircularProgressIndicator;
 
 public class FullMediaActivity extends BaseActivity {
 
+    private ImageButton btnPlayPause;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -27,6 +29,7 @@ public class FullMediaActivity extends BaseActivity {
         VideoView fullVideo = findViewById(R.id.full_video);
         CircularProgressIndicator loading = findViewById(R.id.loading_progress);
         ImageButton btnBack = findViewById(R.id.btn_back);
+        btnPlayPause = findViewById(R.id.btn_play_pause);
 
         String type = getIntent().getStringExtra("type");
         String mediaUrl = getIntent().getStringExtra("url");
@@ -145,6 +148,7 @@ public class FullMediaActivity extends BaseActivity {
             loading.setVisibility(View.GONE);
         } else if ("video".equals(type)) {
             fullVideo.setVisibility(View.VISIBLE);
+            fullVideo.setClickable(true);
             if (path.startsWith("content://") || path.startsWith("file://")) {
                 fullVideo.setVideoURI(Uri.parse(path));
             } else {
@@ -154,16 +158,37 @@ public class FullMediaActivity extends BaseActivity {
                 loading.setVisibility(View.GONE);
                 fullImage.setVisibility(View.GONE);
                 fullVideo.start();
+                btnPlayPause.setVisibility(View.VISIBLE);
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_pause);
             });
             fullVideo.setOnErrorListener((mp, what, extra) -> {
                 loading.setVisibility(View.GONE);
                 fullImage.setVisibility(View.GONE);
                 return false;
             });
-            
-            android.widget.MediaController mediaController = new android.widget.MediaController(this);
-            mediaController.setAnchorView(fullVideo);
-            fullVideo.setMediaController(mediaController);
+
+            fullVideo.setOnCompletionListener(mp -> {
+                btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                btnPlayPause.setVisibility(View.VISIBLE);
+            });
+
+            btnPlayPause.setOnClickListener(v -> {
+                if (fullVideo.isPlaying()) {
+                    fullVideo.pause();
+                    btnPlayPause.setImageResource(android.R.drawable.ic_media_play);
+                } else {
+                    fullVideo.start();
+                    btnPlayPause.setImageResource(android.R.drawable.ic_media_pause);
+                }
+            });
+
+            fullVideo.setOnClickListener(v -> {
+                if (btnPlayPause.getVisibility() == View.VISIBLE) {
+                    btnPlayPause.setVisibility(View.GONE);
+                } else {
+                    btnPlayPause.setVisibility(View.VISIBLE);
+                }
+            });
         }
     }
 }

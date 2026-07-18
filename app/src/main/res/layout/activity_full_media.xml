@@ -29,6 +29,17 @@
         app:indicatorColor="@android:color/white" />
 
     <ImageButton
+        android:id="@+id/btn_play_pause"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_media_play"
+        android:visibility="gone"
+        app:tint="@android:color/white"
+        android:contentDescription="Play/Pause" />
+
+    <ImageButton
         android:id="@+id/btn_back"
         android:layout_width="48dp"
         android:layout_height="48dp"
