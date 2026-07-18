@@ -120,8 +120,6 @@ public class AIChatActivity extends BaseActivity {
         findViewById(R.id.btn_ai_about).setOnClickListener(v -> showAboutDialog());
         findViewById(R.id.btn_ai_new_chat).setOnClickListener(v -> startNewChat());
 
-        setupSuggestions();
-
         adapter = new MessageAdapter(messageList, new MessageAdapter.OnMessageClickListener() {
             @Override public void onReplyClick(String messageId) {}
             @Override public void onMessageLongClick(Message message, View view) {}
@@ -162,7 +160,6 @@ public class AIChatActivity extends BaseActivity {
 
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
-                findViewById(R.id.ai_suggestions_scroll).setVisibility(s.length() > 0 ? View.GONE : View.VISIBLE);
             }
 
             @Override
@@ -205,16 +202,6 @@ public class AIChatActivity extends BaseActivity {
                 } else {
                     adapter.notifyDataSetChanged();
                     recyclerView.scrollToPosition(messageList.size() - 1);
-
-                    // Update suggestions based on the last message if it's from AI and we aren't waiting for a new response
-                    Message lastMsg = messageList.get(messageList.size() - 1);
-                    if (AI_ID.equals(lastMsg.getSenderId()) && !isAiProcessing) {
-                        if (messageList.size() == 1 && lastMsg.getText().equals(getString(R.string.ai_greeting))) {
-                            showDefaultSuggestions();
-                        } else {
-                            showFollowUpSuggestions(lastMsg.getText());
-                        }
-                    }
                 }
             }
 
@@ -396,7 +383,6 @@ public class AIChatActivity extends BaseActivity {
                         setAiProcessing(false);
                         if (streamingMsg != null && chatRef != null) {
                             chatRef.child(streamingMsg.getMessageId()).setValue(streamingMsg);
-                            showFollowUpSuggestions(streamingMsg.getText());
                             streamingMsg = null;
                         }
                     });
@@ -413,11 +399,6 @@ public class AIChatActivity extends BaseActivity {
         isAiProcessing = processing;
         runOnUiThread(() -> {
             typingIndicator.setVisibility(processing ? View.VISIBLE : View.GONE);
-            if (processing) {
-                findViewById(R.id.ai_suggestions_scroll).setVisibility(View.GONE);
-            } else if (messageInput.getText().length() == 0) {
-                findViewById(R.id.ai_suggestions_scroll).setVisibility(View.VISIBLE);
-            }
             messageInput.setEnabled(!processing);
             btnSend.setImageResource(processing 
                     ? android.R.drawable.ic_menu_close_clear_cancel 
@@ -467,89 +448,6 @@ public class AIChatActivity extends BaseActivity {
         }
     }
 
-    private void setupSuggestions() {
-        showDefaultSuggestions();
-    }
-
-    private void showDefaultSuggestions() {
-        updateSuggestions(new String[]{
-                getString(R.string.ai_suggest_joke),
-                getString(R.string.ai_suggest_poem),
-                getString(R.string.ai_suggest_code),
-                getString(R.string.ai_suggest_email),
-                getString(R.string.ai_suggest_translate),
-                getString(R.string.ai_suggest_story)
-        });
-    }
-
-    private void showFollowUpSuggestions(String lastAiResponse) {
-        List<String> followUps = new ArrayList<>();
-        
-        // Try to parse bullet points from the AI response as dynamic suggestions
-        if (lastAiResponse != null) {
-            String[] lines = lastAiResponse.split("\n");
-            for (String line : lines) {
-                String trimmed = line.trim();
-                if ((trimmed.startsWith("- ") || trimmed.startsWith("* ")) && trimmed.length() > 2 && trimmed.length() < 50) {
-                    String suggestion = trimmed.substring(2).trim();
-                    // Remove trailing punctuation
-                    if (suggestion.endsWith(".") || suggestion.endsWith("!") || suggestion.endsWith(",")) {
-                        suggestion = suggestion.substring(0, suggestion.length() - 1);
-                    }
-                    if (!suggestion.isEmpty() && !followUps.contains(suggestion)) {
-                        followUps.add(suggestion);
-                    }
-                }
-                if (followUps.size() >= 6) break;
-            }
-        }
-
-        if (followUps.isEmpty()) {
-            followUps.add(getString(R.string.ai_suggest_more));
-            followUps.add(getString(R.string.ai_suggest_explain));
-        }
-        
-        if (lastAiResponse != null && (lastAiResponse.toLowerCase().contains("code") || lastAiResponse.contains("```"))) {
-            if (!followUps.contains(getString(R.string.ai_suggest_code_explain))) {
-                followUps.add(getString(R.string.ai_suggest_code_explain));
-            }
-        }
-        
-        if (lastAiResponse != null && lastAiResponse.length() > 500) {
-            if (!followUps.contains(getString(R.string.ai_suggest_summarize))) {
-                followUps.add(getString(R.string.ai_suggest_summarize));
-            }
-        }
-        
-        if (!followUps.contains(getString(R.string.ai_suggest_example))) {
-            followUps.add(getString(R.string.ai_suggest_example));
-        }
-
-        updateSuggestions(followUps.toArray(new String[0]));
-    }
-
-    private void updateSuggestions(String[] suggestions) {
-        ChipGroup suggestionsGroup = findViewById(R.id.ai_suggestions_group);
-        if (suggestionsGroup == null) return;
-        
-        suggestionsGroup.removeAllViews();
-        if (suggestions == null) return;
-
-        for (String suggestion : suggestions) {
-            Chip chip = new Chip(this);
-            chip.setText(suggestion);
-            chip.setCheckable(false);
-            chip.setClickable(true);
-            chip.setChipMinHeight(40f);
-            chip.setTextSize(12f);
-            chip.setOnClickListener(v -> {
-                messageInput.setText(suggestion);
-                sendMessage();
-            });
-            suggestionsGroup.addView(chip);
-        }
-    }
-
     private void startNewChat() {
         new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.new_chat)
@@ -560,7 +458,6 @@ public class AIChatActivity extends BaseActivity {
                         chatRef.removeValue();
                         messageList.clear();
                         adapter.notifyDataSetChanged();
-                        showDefaultSuggestions();
                     }
                 })
                 .show();
