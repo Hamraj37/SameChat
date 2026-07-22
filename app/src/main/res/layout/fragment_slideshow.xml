@@ -38,8 +38,15 @@
         android:layout_gravity="bottom|end"
         android:layout_margin="@dimen/fab_margin"
         android:contentDescription="@string/menu_calls"
-        app:srcCompat="@android:drawable/ic_menu_call"
+        android:outlineProvider="none"
+        android:stateListAnimator="@null"
         app:backgroundTint="@color/whatsapp_light_green"
-        app:tint="@color/white" />
+        app:borderWidth="0dp"
+        app:elevation="0dp"
+        app:hoveredFocusedTranslationZ="0dp"
+        app:pressedTranslationZ="0dp"
+        app:srcCompat="@android:drawable/stat_sys_phone_call"
+        app:tint="@color/white"
+        app:useCompatPadding="false" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
