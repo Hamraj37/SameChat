@@ -11,7 +11,9 @@ public class MediaUtils {
         File baseDir = context.getExternalFilesDir(null); // App-specific external storage
         if (baseDir == null) baseDir = context.getFilesDir();
 
-        String folderName = "SomeChat " + (type.equals("image") ? "Images" : (type.equals("video") ? "Videos" : "Voice"));
+        String folderName = "SomeChat " + (type.equals("image") ? "Images" : 
+                           (type.equals("video") ? "Videos" : 
+                           (type.equals("voice") ? "Voice" : "Documents")));
         File dir = new File(baseDir, folderName);
         if (!dir.exists()) {
             dir.mkdirs();
@@ -20,12 +22,23 @@ public class MediaUtils {
     }
 
     public static File getLocalFileForMedia(Context context, String type, String mediaId) {
+        return getLocalFileForMedia(context, type, mediaId, null);
+    }
+
+    public static File getLocalFileForMedia(Context context, String type, String mediaId, String fileName) {
+        if (type.equals("file") && fileName != null) {
+            return new File(getMediaDirectory(context, type), fileName);
+        }
         String extension = type.equals("image") ? ".jpg" : (type.equals("video") ? ".mp4" : ".3gp");
         return new File(getMediaDirectory(context, type), mediaId + extension);
     }
 
     public static void saveMediaLocally(Context context, byte[] data, String type, String mediaId) {
-        File file = getLocalFileForMedia(context, type, mediaId);
+        saveMediaLocally(context, data, type, mediaId, null);
+    }
+
+    public static void saveMediaLocally(Context context, byte[] data, String type, String mediaId, String fileName) {
+        File file = getLocalFileForMedia(context, type, mediaId, fileName);
         if (file.exists()) return;
 
         try (FileOutputStream fos = new FileOutputStream(file)) {
@@ -36,6 +49,10 @@ public class MediaUtils {
     }
     
     public static boolean isMediaDownloaded(Context context, String type, String mediaId) {
-        return getLocalFileForMedia(context, type, mediaId).exists();
+        return isMediaDownloaded(context, type, mediaId, null);
+    }
+
+    public static boolean isMediaDownloaded(Context context, String type, String mediaId, String fileName) {
+        return getLocalFileForMedia(context, type, mediaId, fileName).exists();
     }
 }

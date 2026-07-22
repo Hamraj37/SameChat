@@ -92,29 +92,39 @@ public class ChatActivity extends BaseActivity {
     private String audioPath = null;
     private long recordStartTime = 0;
     private boolean isRecording = false;
-    private android.net.Uri photoUri;
+    private android.net.Uri cameraUri;
 
-    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> pickImageLauncher =
+    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> pickMediaLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
                     uri -> {
                         if (uri != null) {
-                            uploadMedia(uri, "image");
-                        }
-                    });
-
-    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> pickVideoLauncher =
-            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
-                    uri -> {
-                        if (uri != null) {
-                            uploadMedia(uri, "video");
+                            String mimeType = getContentResolver().getType(uri);
+                            String type = (mimeType != null && mimeType.startsWith("video")) ? "video" : "image";
+                            uploadMedia(uri, type);
                         }
                     });
 
     private final androidx.activity.result.ActivityResultLauncher<android.net.Uri> takePhotoLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.TakePicture(),
                     success -> {
-                        if (success && photoUri != null) {
-                            uploadMedia(photoUri, "image");
+                        if (success && cameraUri != null) {
+                            uploadMedia(cameraUri, "image");
+                        }
+                    });
+
+    private final androidx.activity.result.ActivityResultLauncher<android.net.Uri> takeVideoLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.CaptureVideo(),
+                    success -> {
+                        if (success && cameraUri != null) {
+                            uploadMedia(cameraUri, "video");
+                        }
+                    });
+
+    private final androidx.activity.result.ActivityResultLauncher<String[]> pickDocumentLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+                    uri -> {
+                        if (uri != null) {
+                            uploadMedia(uri, "file");
                         }
                     });
 
@@ -231,24 +241,6 @@ public class ChatActivity extends BaseActivity {
         super.onNewIntent(intent);
         setIntent(intent);
         initChat();
-
-        getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
-            @Override
-            public void handleOnBackPressed() {
-                if (adapter != null && adapter.isSelectionMode()) {
-                    adapter.clearSelection();
-                } else if (attachmentMenu != null && attachmentMenu.getVisibility() == View.VISIBLE) {
-                    hideAttachmentMenu();
-                } else if (replyingToMessage != null) {
-                    cancelReply();
-                } else if (editingMessage != null) {
-                    cancelEdit();
-                } else {
-                    setEnabled(false);
-                    getOnBackPressedDispatcher().onBackPressed();
-                }
-            }
-        });
     }
 
     private void checkForwardedMessage() {
@@ -389,21 +381,19 @@ public class ChatActivity extends BaseActivity {
     }
 
     private void setupAttachmentMenuListeners() {
-        findViewById(R.id.option_photo).setOnClickListener(v -> {
+        findViewById(R.id.option_media).setOnClickListener(v -> {
             toggleAttachmentMenu();
-            pickImageLauncher.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
-                    .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
-                    .build());
-        });
-        findViewById(R.id.option_video).setOnClickListener(v -> {
-            toggleAttachmentMenu();
-            pickVideoLauncher.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
-                    .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.VideoOnly.INSTANCE)
+            pickMediaLauncher.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
+                    .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo.INSTANCE)
                     .build());
         });
         findViewById(R.id.option_camera).setOnClickListener(v -> {
             toggleAttachmentMenu();
             openCamera();
+        });
+        findViewById(R.id.option_document).setOnClickListener(v -> {
+            toggleAttachmentMenu();
+            pickDocumentLauncher.launch(new String[]{"*/*"});
         });
     }
 
@@ -413,12 +403,36 @@ public class ChatActivity extends BaseActivity {
             return;
         }
 
+        String[] options = {"Take Photo", "Record Video"};
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Camera")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        takePhoto();
+                    } else {
+                        recordVideo();
+                    }
+                })
+                .show();
+    }
+
+    private void takePhoto() {
         try {
             File photoFile = File.createTempFile("IMG_", ".jpg", getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES));
-            photoUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", photoFile);
-            takePhotoLauncher.launch(photoUri);
+            cameraUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", photoFile);
+            takePhotoLauncher.launch(cameraUri);
         } catch (IOException e) {
             android.util.Log.e("ChatActivity", "Error creating photo file", e);
+        }
+    }
+
+    private void recordVideo() {
+        try {
+            File videoFile = File.createTempFile("VID_", ".mp4", getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES));
+            cameraUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", videoFile);
+            takeVideoLauncher.launch(cameraUri);
+        } catch (IOException e) {
+            android.util.Log.e("ChatActivity", "Error creating video file", e);
         }
     }
 
@@ -507,12 +521,20 @@ public class ChatActivity extends BaseActivity {
         String messageId = chatRef.push().getKey();
         if (messageId == null) return;
 
-        String extension = type.equals("image") ? ".jpg" : ".mp4";
-        String fileName = messageId + extension;
-        String remoteFolder = type.equals("image") ? "images" : "videos";
+        String fileName;
+        String remoteFolder;
+        if (type.equals("file")) {
+            fileName = com.hamraj37.somechat.utils.FileUtils.getFileName(this, uri);
+            remoteFolder = "documents";
+        } else {
+            String extension = type.equals("image") ? ".jpg" : ".mp4";
+            fileName = messageId + extension;
+            remoteFolder = type.equals("image") ? "images" : "videos";
+        }
 
+        String displayPreview = type.equals("file") ? fileName : type.substring(0,1).toUpperCase() + type.substring(1);
         // Add placeholder message locally
-        Message pendingMsg = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, "local:" + uri.toString(), 0);
+        Message pendingMsg = new Message(messageId, senderId, receiverId, displayPreview, System.currentTimeMillis(), type, "local:" + uri.toString(), 0);
         messageList.add(pendingMsg);
         adapter.notifyItemInserted(messageList.size() - 1);
         chatRecycler.smoothScrollToPosition(messageList.size() - 1);
@@ -529,10 +551,11 @@ public class ChatActivity extends BaseActivity {
                 baos.write(buffer, 0, len);
             }
             byte[] bytes = baos.toByteArray();
+            final long fileSize = bytes.length;
             inputStream.close();
 
             // Save a copy locally like WhatsApp
-            com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(this, bytes, type, messageId);
+            com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(this, bytes, type, messageId, type.equals("file") ? fileName : null);
 
             // 2. Encrypt bytes
             javax.crypto.SecretKey fileKey = com.hamraj37.somechat.utils.EncryptionManager.generateAESKey();
@@ -551,6 +574,7 @@ public class ChatActivity extends BaseActivity {
                             org.json.JSONObject mediaJson = new org.json.JSONObject();
                             mediaJson.put("u", downloadUrl);
                             mediaJson.put("k", encodedFileKey);
+                            mediaJson.put("s", fileSize);
                             String mediaInfo = mediaJson.toString();
 
                             String finalContent = mediaInfo;
@@ -559,7 +583,8 @@ public class ChatActivity extends BaseActivity {
                                 finalContent = com.hamraj37.somechat.utils.EncryptionManager.encrypt(mediaInfo, receiverPublicKey, myPubKey);
                             }
 
-                            Message message = new Message(messageId, senderId, receiverId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, finalContent, 0);
+                            String displayPreview = type.equals("file") ? fileName : type.substring(0,1).toUpperCase() + type.substring(1);
+                            Message message = new Message(messageId, senderId, receiverId, displayPreview, System.currentTimeMillis(), type, finalContent, 0);
                             
                             if (replyingToMessage != null) {
                                 message.setReplyToId(replyingToMessage.getMessageId());
@@ -720,6 +745,7 @@ public class ChatActivity extends BaseActivity {
                 baos.write(buffer, 0, len);
             }
             byte[] bytes = baos.toByteArray();
+            final long fileSize = bytes.length;
             fis.close();
 
             // Save copy locally
@@ -741,6 +767,7 @@ public class ChatActivity extends BaseActivity {
                             org.json.JSONObject mediaJson = new org.json.JSONObject();
                             mediaJson.put("u", downloadUrl);
                             mediaJson.put("k", encodedFileKey);
+                            mediaJson.put("s", fileSize);
                             String mediaInfo = mediaJson.toString();
 
                             String finalContent = mediaInfo;

@@ -1,10 +1,14 @@
 package com.hamraj37.somechat.adapters;
 
+import android.content.Intent;
+import android.net.Uri;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
@@ -32,6 +36,8 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
     private static final int VIEW_TYPE_VIDEO_SENT = 7;
     private static final int VIEW_TYPE_VIDEO_RECEIVED = 8;
     private static final int VIEW_TYPE_SYSTEM = 9;
+    private static final int VIEW_TYPE_DOCUMENT_SENT = 10;
+    private static final int VIEW_TYPE_DOCUMENT_RECEIVED = 11;
 
     private List<Message> messageList;
     private java.util.Set<String> selectedMessageIds = new java.util.HashSet<>();
@@ -252,6 +258,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 case "voice": return VIEW_TYPE_VOICE_SENT;
                 case "image": return VIEW_TYPE_IMAGE_SENT;
                 case "video": return VIEW_TYPE_VIDEO_SENT;
+                case "file": return VIEW_TYPE_DOCUMENT_SENT;
                 default: return VIEW_TYPE_SENT;
             }
         } else {
@@ -259,6 +266,7 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 case "voice": return VIEW_TYPE_VOICE_RECEIVED;
                 case "image": return VIEW_TYPE_IMAGE_RECEIVED;
                 case "video": return VIEW_TYPE_VIDEO_RECEIVED;
+                case "file": return VIEW_TYPE_DOCUMENT_RECEIVED;
                 default: return VIEW_TYPE_RECEIVED;
             }
         }
@@ -289,6 +297,10 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 return new VideoReceivedViewHolder(inflater.inflate(R.layout.item_video_received, parent, false));
             case VIEW_TYPE_SYSTEM:
                 return new SystemMessageViewHolder(inflater.inflate(R.layout.item_message_system, parent, false));
+            case VIEW_TYPE_DOCUMENT_SENT:
+                return new DocumentSentViewHolder(inflater.inflate(R.layout.item_document_sent, parent, false));
+            case VIEW_TYPE_DOCUMENT_RECEIVED:
+                return new DocumentReceivedViewHolder(inflater.inflate(R.layout.item_document_received, parent, false));
             default:
                 return new SentMessageViewHolder(inflater.inflate(R.layout.item_message_sent, parent, false));
         }
@@ -370,6 +382,10 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
             ((VideoReceivedViewHolder) holder).bind(displayMessage);
         } else if (holder instanceof SystemMessageViewHolder) {
             ((SystemMessageViewHolder) holder).bind(displayMessage);
+        } else if (holder instanceof DocumentSentViewHolder) {
+            ((DocumentSentViewHolder) holder).bind(displayMessage);
+        } else if (holder instanceof DocumentReceivedViewHolder) {
+            ((DocumentReceivedViewHolder) holder).bind(displayMessage);
         }
 
         bindReactions(holder.itemView, displayMessage);
@@ -1655,6 +1671,278 @@ public class MessageAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder
                 }
             }
         });
+    }
+
+    class DocumentSentViewHolder extends RecyclerView.ViewHolder {
+        TextView textFilename, textFileInfo, textTimestamp;
+        ImageView imageStatus, imagePin, btnFileAction;
+        com.google.android.material.progressindicator.CircularProgressIndicator fileProgress;
+        View forwardIndicator;
+
+        public DocumentSentViewHolder(@NonNull View itemView) {
+            super(itemView);
+            textFilename = itemView.findViewById(R.id.text_filename);
+            textFileInfo = itemView.findViewById(R.id.text_file_info);
+            textTimestamp = itemView.findViewById(R.id.text_timestamp);
+            imageStatus = itemView.findViewById(R.id.image_status);
+            imagePin = itemView.findViewById(R.id.image_pin);
+            btnFileAction = itemView.findViewById(R.id.btn_file_action);
+            fileProgress = itemView.findViewById(R.id.file_progress);
+            forwardIndicator = itemView.findViewById(R.id.forward_indicator);
+        }
+
+        void bind(Message message) {
+            textFilename.setText(message.getText());
+            textTimestamp.setText(formatDate(message.getTimestamp()));
+            bindReply(itemView, message);
+
+            if (imagePin != null) {
+                imagePin.setVisibility(message.isPinned() ? View.VISIBLE : View.GONE);
+            }
+
+            if (forwardIndicator != null) {
+                forwardIndicator.setVisibility(message.isForwarded() ? View.VISIBLE : View.GONE);
+            }
+
+            long size = 0;
+            String mediaData = message.getMediaUrl();
+            if (mediaData != null && mediaData.trim().startsWith("{")) {
+                try {
+                    org.json.JSONObject json = new org.json.JSONObject(mediaData);
+                    size = json.optLong("s", 0);
+                } catch (Exception e) {}
+            }
+            
+            String ext = "";
+            if (message.getText() != null && message.getText().contains(".")) {
+                ext = message.getText().substring(message.getText().lastIndexOf(".") + 1).toUpperCase();
+            }
+            
+            String info = (size > 0 ? android.text.format.Formatter.formatShortFileSize(context, size) : "") 
+                        + (!ext.isEmpty() ? " • " + ext : "");
+            textFileInfo.setText(info);
+
+            boolean isDownloaded = com.hamraj37.somechat.utils.MediaUtils.isMediaDownloaded(context, "file", message.getMessageId(), message.getText());
+            boolean isUploading = uploadProgressMap.containsKey(message.getMessageId());
+            boolean isDownloading = downloadProgressMap.containsKey(message.getMessageId());
+
+            if (isUploading) {
+                btnFileAction.setVisibility(View.GONE);
+                fileProgress.setVisibility(View.VISIBLE);
+                Integer p = uploadProgressMap.get(message.getMessageId());
+                fileProgress.setProgress(p != null ? p : 0);
+            } else if (isDownloading) {
+                btnFileAction.setVisibility(View.GONE);
+                fileProgress.setVisibility(View.VISIBLE);
+                Integer p = downloadProgressMap.get(message.getMessageId());
+                fileProgress.setProgress(p != null ? p : 0);
+            } else {
+                fileProgress.setVisibility(View.GONE);
+                btnFileAction.setVisibility(View.VISIBLE);
+                btnFileAction.setImageResource(isDownloaded ? android.R.drawable.ic_menu_directions : android.R.drawable.stat_sys_download);
+            }
+
+            btnFileAction.setOnClickListener(v -> {
+                if (isDownloaded) {
+                    openDocument(message);
+                } else {
+                    downloadDocumentManual(message);
+                }
+            });
+
+            if (message.isSeen()) {
+                int color = com.google.android.material.color.MaterialColors.getColor(itemView, androidx.appcompat.R.attr.colorPrimary);
+                imageStatus.setColorFilter(color);
+            } else {
+                imageStatus.setColorFilter(androidx.core.content.ContextCompat.getColor(itemView.getContext(), android.R.color.darker_gray));
+            }
+
+            itemView.setOnClickListener(v -> {
+                if (isSelectionMode) {
+                    toggleSelection(message.getMessageId());
+                } else if (isDownloaded) {
+                    openDocument(message);
+                }
+            });
+
+            itemView.setOnLongClickListener(v -> {
+                if (listener != null) {
+                    listener.onMessageLongClick(message, v);
+                }
+                return true;
+            });
+        }
+    }
+
+    class DocumentReceivedViewHolder extends RecyclerView.ViewHolder {
+        TextView senderName, senderUsername, textFilename, textFileInfo, textTimestamp;
+        ImageView imagePin, btnFileAction;
+        com.google.android.material.progressindicator.CircularProgressIndicator fileProgress;
+        View forwardIndicator, senderInfoContainer;
+
+        public DocumentReceivedViewHolder(@NonNull View itemView) {
+            super(itemView);
+            senderName = itemView.findViewById(R.id.sender_name);
+            senderUsername = itemView.findViewById(R.id.sender_username);
+            textFilename = itemView.findViewById(R.id.text_filename);
+            textFileInfo = itemView.findViewById(R.id.text_file_info);
+            textTimestamp = itemView.findViewById(R.id.text_timestamp);
+            imagePin = itemView.findViewById(R.id.image_pin);
+            btnFileAction = itemView.findViewById(R.id.btn_file_action);
+            fileProgress = itemView.findViewById(R.id.file_progress);
+            forwardIndicator = itemView.findViewById(R.id.forward_indicator);
+            senderInfoContainer = itemView.findViewById(R.id.sender_info_container);
+        }
+
+        void bind(Message message) {
+            if (isGroup && senderInfoContainer != null) {
+                senderInfoContainer.setVisibility(View.VISIBLE);
+                senderName.setText(message.getSenderName());
+                senderUsername.setText("@" + message.getSenderUsername());
+            } else if (senderInfoContainer != null) {
+                senderInfoContainer.setVisibility(View.GONE);
+            }
+
+            textFilename.setText(message.getText());
+            textTimestamp.setText(formatDate(message.getTimestamp()));
+            bindReply(itemView, message);
+
+            if (imagePin != null) {
+                imagePin.setVisibility(message.isPinned() ? View.VISIBLE : View.GONE);
+            }
+
+            if (forwardIndicator != null) {
+                forwardIndicator.setVisibility(message.isForwarded() ? View.VISIBLE : View.GONE);
+            }
+
+            long size = 0;
+            String mediaData = message.getMediaUrl();
+            if (mediaData != null && mediaData.trim().startsWith("{")) {
+                try {
+                    org.json.JSONObject json = new org.json.JSONObject(mediaData);
+                    size = json.optLong("s", 0);
+                } catch (Exception e) {}
+            }
+            
+            String ext = "";
+            if (message.getText() != null && message.getText().contains(".")) {
+                ext = message.getText().substring(message.getText().lastIndexOf(".") + 1).toUpperCase();
+            }
+            
+            String info = (size > 0 ? android.text.format.Formatter.formatShortFileSize(context, size) : "") 
+                        + (!ext.isEmpty() ? " • " + ext : "");
+            textFileInfo.setText(info);
+
+            boolean isDownloaded = com.hamraj37.somechat.utils.MediaUtils.isMediaDownloaded(context, "file", message.getMessageId(), message.getText());
+            boolean isDownloading = downloadProgressMap.containsKey(message.getMessageId());
+
+            if (isDownloading) {
+                btnFileAction.setVisibility(View.GONE);
+                fileProgress.setVisibility(View.VISIBLE);
+                Integer p = downloadProgressMap.get(message.getMessageId());
+                fileProgress.setProgress(p != null ? p : 0);
+            } else {
+                fileProgress.setVisibility(View.GONE);
+                btnFileAction.setVisibility(View.VISIBLE);
+                btnFileAction.setImageResource(isDownloaded ? android.R.drawable.ic_menu_directions : android.R.drawable.stat_sys_download);
+            }
+
+            btnFileAction.setOnClickListener(v -> {
+                if (isDownloaded) {
+                    openDocument(message);
+                } else {
+                    downloadDocumentManual(message);
+                }
+            });
+
+            itemView.setOnClickListener(v -> {
+                if (isSelectionMode) {
+                    toggleSelection(message.getMessageId());
+                } else if (isDownloaded) {
+                    openDocument(message);
+                }
+            });
+
+            itemView.setOnLongClickListener(v -> {
+                if (listener != null) {
+                    listener.onMessageLongClick(message, v);
+                }
+                return true;
+            });
+        }
+    }
+
+    private void downloadDocumentManual(Message message) {
+        String messageId = message.getMessageId();
+        if (downloadProgressMap.containsKey(messageId)) return;
+
+        try {
+            org.json.JSONObject json = new org.json.JSONObject(message.getMediaUrl());
+            String url = json.getString("u");
+            String key = json.getString("k");
+
+            updateDownloadProgress(messageId, 0);
+
+            com.hamraj37.somechat.utils.GitHubStorage.downloadFile(url, new com.hamraj37.somechat.utils.GitHubStorage.DownloadCallback() {
+                @Override
+                public void onProgress(int progress) {
+                    if (context instanceof android.app.Activity) {
+                        ((android.app.Activity) context).runOnUiThread(() -> updateDownloadProgress(messageId, progress));
+                    }
+                }
+
+                @Override
+                public void onFailure(@NonNull Exception e) {
+                    if (context instanceof android.app.Activity) {
+                        ((android.app.Activity) context).runOnUiThread(() -> removeDownloadProgress(messageId));
+                    }
+                }
+
+                @Override
+                public void onSuccess(byte[] data) {
+                    try {
+                        javax.crypto.SecretKey secretKey = com.hamraj37.somechat.utils.EncryptionManager.decodeKey(key);
+                        byte[] decryptedBytes = com.hamraj37.somechat.utils.EncryptionManager.decryptRaw(data, secretKey);
+                        com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(context, decryptedBytes, "file", messageId, message.getText());
+
+                        if (context instanceof android.app.Activity) {
+                            ((android.app.Activity) context).runOnUiThread(() -> {
+                                removeDownloadProgress(messageId);
+                                notifyItemChanged(getPositionForMessageId(messageId));
+                            });
+                        }
+                    } catch (Exception e) {
+                        if (context instanceof android.app.Activity) {
+                            ((android.app.Activity) context).runOnUiThread(() -> removeDownloadProgress(messageId));
+                        }
+                        e.printStackTrace();
+                    }
+                }
+            });
+        } catch (Exception e) {
+            removeDownloadProgress(messageId);
+            e.printStackTrace();
+        }
+    }
+
+    private void openDocument(Message message) {
+        java.io.File file = com.hamraj37.somechat.utils.MediaUtils.getLocalFileForMedia(context, "file", message.getMessageId(), message.getText());
+        if (file.exists()) {
+            Uri uri = androidx.core.content.FileProvider.getUriForFile(context, context.getPackageName() + ".provider", file);
+            Intent intent = new Intent(Intent.ACTION_VIEW);
+            
+            String extension = android.webkit.MimeTypeMap.getFileExtensionFromUrl(Uri.fromFile(file).toString());
+            String mimeType = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.toLowerCase());
+            if (mimeType == null) mimeType = "*/*";
+            
+            intent.setDataAndType(uri, mimeType);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            try {
+                context.startActivity(Intent.createChooser(intent, "Open File"));
+            } catch (Exception e) {
+                Toast.makeText(context, "No app found to open this file", Toast.LENGTH_SHORT).show();
+            }
+        }
     }
 
     private static String formatDuration(int seconds) {

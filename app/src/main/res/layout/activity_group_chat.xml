@@ -513,6 +513,17 @@
                         app:shapeAppearanceOverlay="@style/FabShapeAppearance" />
 
                 </LinearLayout>
+
+                <TextView
+                    android:id="@+id/not_member_text"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center"
+                    android:text="You are no longer a member of this group"
+                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textColor="?attr/colorError"
+                    android:visibility="gone"
+                    android:padding="12dp" />
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>

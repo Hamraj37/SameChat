@@ -88,29 +88,39 @@ public class GroupChatActivity extends BaseActivity {
     private String audioPath = null;
     private long recordStartTime = 0;
     private boolean isRecording = false;
-    private android.net.Uri photoUri;
+    private android.net.Uri cameraUri;
 
-    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> pickImageLauncher =
+    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> pickMediaLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
                     uri -> {
                         if (uri != null) {
-                            uploadMedia(uri, "image");
-                        }
-                    });
-
-    private final androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest> pickVideoLauncher =
-            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia(),
-                    uri -> {
-                        if (uri != null) {
-                            uploadMedia(uri, "video");
+                            String mimeType = getContentResolver().getType(uri);
+                            String type = (mimeType != null && mimeType.startsWith("video")) ? "video" : "image";
+                            uploadMedia(uri, type);
                         }
                     });
 
     private final androidx.activity.result.ActivityResultLauncher<android.net.Uri> takePhotoLauncher =
             registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.TakePicture(),
                     success -> {
-                        if (success && photoUri != null) {
-                            uploadMedia(photoUri, "image");
+                        if (success && cameraUri != null) {
+                            uploadMedia(cameraUri, "image");
+                        }
+                    });
+
+    private final androidx.activity.result.ActivityResultLauncher<android.net.Uri> takeVideoLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.CaptureVideo(),
+                    success -> {
+                        if (success && cameraUri != null) {
+                            uploadMedia(cameraUri, "video");
+                        }
+                    });
+
+    private final androidx.activity.result.ActivityResultLauncher<String[]> pickDocumentLauncher =
+            registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+                    uri -> {
+                        if (uri != null) {
+                            uploadMedia(uri, "file");
                         }
                     });
 
@@ -152,27 +162,28 @@ public class GroupChatActivity extends BaseActivity {
 
         btnAttachment = findViewById(R.id.btn_attachment);
         attachmentMenu = findViewById(R.id.attachment_menu);
+        findViewById(R.id.btn_cancel_reply).setOnClickListener(v -> cancelReply());
+        
+        checkPinnedScroll();
 
-        setupBackground();
-        setupToolbar();
+        replyLayout.setOnClickListener(v -> {
+            if (replyingToMessage != null) {
+                String targetId = replyingToMessage.getMessageId();
+                for (int i = 0; i < messageList.size(); i++) {
+                    if (messageList.get(i).getMessageId().equals(targetId)) {
+                        chatRecycler.smoothScrollToPosition(i + 1);
+                        adapter.highlightMessage(targetId);
+                        break;
+                    }
+                }
+            }
+        });
+
         setupRecyclerView();
         setupInputListeners();
         setupAttachmentMenuListeners();
 
-        findViewById(R.id.btn_cancel_reply).setOnClickListener(v -> cancelReply());
-        // Remove direct click listener for btn_send as it's now in setupInputListeners
-        // findViewById(R.id.btn_send).setOnClickListener(v -> sendMessage());
-
-        setupFirebase();
-        checkMembership();
-        listenForGroupDetails();
-
-        findViewById(R.id.btn_reply_selected).setOnClickListener(v -> replyToSelectedMessage());
-        findViewById(R.id.btn_pin_selected).setOnClickListener(v -> pinSelectedMessages());
-        findViewById(R.id.btn_copy_selected).setOnClickListener(v -> copySelectedMessages());
-        findViewById(R.id.btn_forward_selected).setOnClickListener(v -> forwardSelectedMessages());
-        findViewById(R.id.btn_edit_selected).setOnClickListener(v -> editSelectedMessage());
-        findViewById(R.id.btn_delete_selected).setOnClickListener(v -> deleteSelectedMessages());
+        initGroupChat();
 
         getOnBackPressedDispatcher().addCallback(this, new androidx.activity.OnBackPressedCallback(true) {
             @Override
@@ -191,6 +202,174 @@ public class GroupChatActivity extends BaseActivity {
                 }
             }
         });
+    }
+
+    private void initGroupChat() {
+        groupChatRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId);
+        openedGroupId = groupId;
+
+        setupToolbar();
+        checkMembership();
+        loadGroupDetails();
+        setupFirebase();
+    }
+
+    private void checkMembership() {
+        membershipRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("members").child(senderId);
+        membershipListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                isMember = snapshot.exists();
+                updateInputUI();
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        membershipRef.addValueEventListener(membershipListener);
+    }
+
+    private void updateInputUI() {
+        if (isMember) {
+            inputArea.setVisibility(View.VISIBLE);
+            findViewById(R.id.not_member_text).setVisibility(View.GONE);
+        } else {
+            inputArea.setVisibility(View.GONE);
+            findViewById(R.id.not_member_text).setVisibility(View.VISIBLE);
+        }
+    }
+
+    private void loadGroupDetails() {
+        groupDetailsRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId);
+        groupDetailsListener = new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot snapshot) {
+                if (snapshot.exists()) {
+                    groupName = snapshot.child("name").getValue(String.class);
+                    groupAvatar = snapshot.child("avatar").getValue(String.class);
+                    updateToolbar();
+                }
+            }
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
+        };
+        groupDetailsRef.addValueEventListener(groupDetailsListener);
+    }
+
+    private void updateToolbar() {
+        TextView toolbarName = findViewById(R.id.toolbar_name);
+        ImageView toolbarAvatar = findViewById(R.id.toolbar_avatar);
+        toolbarName.setText(groupName);
+        if (groupAvatar != null && !groupAvatar.isEmpty()) {
+            Glide.with(this).load(groupAvatar).circleCrop().into(toolbarAvatar);
+        }
+    }
+
+    private void checkForwardedMessage() {
+        if (getIntent().hasExtra("forward_list")) {
+            ArrayList<Message> list = (ArrayList<Message>) getIntent().getSerializableExtra("forward_list");
+            if (list != null && !list.isEmpty()) {
+                for (Message m : list) {
+                    sendForwardedMessage(m);
+                }
+            }
+            getIntent().removeExtra("forward_list");
+        }
+    }
+
+    private void sendForwardedMessage(Message m) {
+        String messageId = groupChatRef.child("messages").push().getKey();
+        if (messageId == null) return;
+
+        Message message = new Message();
+        message.setMessageId(messageId);
+        message.setSenderId(senderId);
+        message.setReceiverId(groupId);
+        message.setTimestamp(System.currentTimeMillis());
+        message.setType(m.getType());
+        message.setSenderName(senderName);
+        message.setSenderUsername(senderUsername);
+        message.setForwarded(true);
+        message.setDuration(m.getDuration());
+
+        if (m.getType() == null || "text".equals(m.getType())) {
+            message.setText(m.getText());
+        } else {
+            message.setMediaUrl(m.getMediaUrl());
+        }
+
+        groupChatRef.child("messages").child(messageId).setValue(message);
+    }
+
+    private void checkPinnedScroll() {
+        if (getIntent().hasExtra("scroll_to_message_id")) {
+            String targetId = getIntent().getStringExtra("scroll_to_message_id");
+            if (targetId != null) {
+                chatRecycler.postDelayed(() -> {
+                    for (int i = 0; i < messageList.size(); i++) {
+                        if (messageList.get(i).getMessageId().equals(targetId)) {
+                            chatRecycler.smoothScrollToPosition(i + 1);
+                            adapter.highlightMessage(targetId);
+                            break;
+                        }
+                    }
+                }, 500);
+            }
+            getIntent().removeExtra("scroll_to_message_id");
+        }
+    }
+
+    private void setupAttachmentMenuListeners() {
+        findViewById(R.id.option_media).setOnClickListener(v -> {
+            toggleAttachmentMenu();
+            pickMediaLauncher.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
+                    .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageAndVideo.INSTANCE)
+                    .build());
+        });
+        findViewById(R.id.option_camera).setOnClickListener(v -> {
+            toggleAttachmentMenu();
+            openCamera();
+        });
+        findViewById(R.id.option_document).setOnClickListener(v -> {
+            toggleAttachmentMenu();
+            pickDocumentLauncher.launch(new String[]{"*/*"});
+        });
+    }
+
+    private void openCamera() {
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.CAMERA}, 201);
+            return;
+        }
+
+        String[] options = {"Take Photo", "Record Video"};
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Camera")
+                .setItems(options, (dialog, which) -> {
+                    if (which == 0) {
+                        takePhoto();
+                    } else {
+                        recordVideo();
+                    }
+                })
+                .show();
+    }
+
+    private void takePhoto() {
+        try {
+            File photoFile = File.createTempFile("IMG_", ".jpg", getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES));
+            cameraUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", photoFile);
+            takePhotoLauncher.launch(cameraUri);
+        } catch (IOException e) {
+            android.util.Log.e("GroupChatActivity", "Error creating photo file", e);
+        }
+    }
+
+    private void recordVideo() {
+        try {
+            File videoFile = File.createTempFile("VID_", ".mp4", getExternalFilesDir(android.os.Environment.DIRECTORY_MOVIES));
+            cameraUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", videoFile);
+            takeVideoLauncher.launch(cameraUri);
+        } catch (IOException e) {
+            android.util.Log.e("GroupChatActivity", "Error creating video file", e);
+        }
     }
 
     private void setupInputListeners() {
@@ -216,7 +395,6 @@ public class GroupChatActivity extends BaseActivity {
         btnSend.setOnTouchListener((v, event) -> {
             String text = messageInput.getText().toString().trim();
             if (text.isEmpty() && editingMessage == null) {
-                // Voice message mode
                 switch (event.getAction()) {
                     case android.view.MotionEvent.ACTION_DOWN:
                         v.performClick();
@@ -227,7 +405,7 @@ public class GroupChatActivity extends BaseActivity {
                     case android.view.MotionEvent.ACTION_MOVE:
                         if (isRecording && !isCanceled) {
                             float diff = startX - event.getRawX();
-                            if (diff > 150) { // Threshold for swipe to cancel
+                            if (diff > 150) {
                                 cancelRecording();
                             }
                         }
@@ -254,6 +432,124 @@ public class GroupChatActivity extends BaseActivity {
         });
     }
 
+    private void toggleAttachmentMenu() {
+        if (attachmentMenu.getVisibility() == View.VISIBLE) {
+            attachmentMenu.animate()
+                    .alpha(0f)
+                    .translationY(attachmentMenu.getHeight())
+                    .setDuration(200)
+                    .withEndAction(() -> attachmentMenu.setVisibility(View.GONE))
+                    .start();
+        } else {
+            attachmentMenu.setVisibility(View.VISIBLE);
+            attachmentMenu.setAlpha(0f);
+            attachmentMenu.setTranslationY(100f);
+            attachmentMenu.animate()
+                    .alpha(1f)
+                    .translationY(0f)
+                    .setDuration(200)
+                    .start();
+        }
+    }
+
+    private void uploadMedia(android.net.Uri uri, String type) {
+        if (senderName == null || senderUsername == null) {
+            Toast.makeText(this, "Please wait, loading user info...", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        String messageId = groupChatRef.child("messages").push().getKey();
+        if (messageId == null) return;
+
+        String fileName;
+        String remoteFolder;
+        if (type.equals("file")) {
+            fileName = com.hamraj37.somechat.utils.FileUtils.getFileName(this, uri);
+            remoteFolder = "group_documents";
+        } else {
+            String extension = type.equals("image") ? ".jpg" : ".mp4";
+            fileName = messageId + extension;
+            remoteFolder = type.equals("image") ? "group_images" : "group_videos";
+        }
+
+        String displayPreview = type.equals("file") ? fileName : type.substring(0,1).toUpperCase() + type.substring(1);
+        Message pendingMsg = new Message(messageId, senderId, groupId, displayPreview, System.currentTimeMillis(), type, "local:" + uri.toString(), 0);
+        pendingMsg.setSenderName(senderName);
+        pendingMsg.setSenderUsername(senderUsername);
+        messageList.add(pendingMsg);
+        adapter.notifyItemInserted(messageList.size() - 1);
+        chatRecycler.smoothScrollToPosition(messageList.size() - 1);
+
+        try {
+            java.io.InputStream inputStream = getContentResolver().openInputStream(uri);
+            if (inputStream == null) return;
+            
+            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int len;
+            while ((len = inputStream.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+            byte[] bytes = baos.toByteArray();
+            final long fileSize = bytes.length;
+            inputStream.close();
+
+            com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(this, bytes, type, messageId, type.equals("file") ? fileName : null);
+
+            javax.crypto.SecretKey fileKey = com.hamraj37.somechat.utils.EncryptionManager.generateAESKey();
+            byte[] encryptedBytes = com.hamraj37.somechat.utils.EncryptionManager.encryptRaw(bytes, fileKey);
+            String encodedFileKey = com.hamraj37.somechat.utils.EncryptionManager.encodeKey(fileKey);
+
+            com.hamraj37.somechat.utils.GitHubStorage.uploadBytes(encryptedBytes, remoteFolder, fileName, new com.hamraj37.somechat.utils.GitHubStorage.UploadCallback() {
+                @Override
+                public void onSuccess(String downloadUrl) {
+                    runOnUiThread(() -> {
+                        adapter.removeUploadProgress(messageId);
+                        try {
+                            org.json.JSONObject mediaJson = new org.json.JSONObject();
+                            mediaJson.put("u", downloadUrl);
+                            mediaJson.put("k", encodedFileKey);
+                            mediaJson.put("s", fileSize);
+                            String mediaInfo = mediaJson.toString();
+
+                            String displayPreviewFinal = type.equals("file") ? fileName : type.substring(0,1).toUpperCase() + type.substring(1);
+                            Message message = new Message(messageId, senderId, groupId, displayPreviewFinal, System.currentTimeMillis(), type, mediaInfo, 0);
+                            message.setSenderName(senderName);
+                            message.setSenderUsername(senderUsername);
+                            
+                            if (replyingToMessage != null) {
+                                message.setReplyToId(replyingToMessage.getMessageId());
+                                message.setReplyToName(replyingToMessage.getSenderName());
+                                message.setReplyToText(replyingToMessage.getText());
+                                cancelReply();
+                            }
+
+                            groupChatRef.child("messages").child(messageId).setValue(message);
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                    });
+                }
+
+                @Override
+                public void onProgress(int progress) {
+                    runOnUiThread(() -> adapter.updateUploadProgress(messageId, progress));
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    runOnUiThread(() -> {
+                        adapter.removeUploadProgress(messageId);
+                        messageList.remove(pendingMsg);
+                        adapter.notifyDataSetChanged();
+                        Toast.makeText(GroupChatActivity.this, "Failed to upload " + type, Toast.LENGTH_SHORT).show();
+                    });
+                }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     private void startRecording() {
         if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
             androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.RECORD_AUDIO}, 200);
@@ -262,7 +558,7 @@ public class GroupChatActivity extends BaseActivity {
 
         File cacheDir = getExternalCacheDir();
         if (cacheDir == null) cacheDir = getCacheDir();
-        audioPath = cacheDir.getAbsolutePath() + "/temp_group_audio.3gp";
+        audioPath = cacheDir.getAbsolutePath() + "/temp_audio.3gp";
         
         mediaRecorder = new android.media.MediaRecorder();
         mediaRecorder.setAudioSource(android.media.MediaRecorder.AudioSource.MIC);
@@ -275,7 +571,7 @@ public class GroupChatActivity extends BaseActivity {
             mediaRecorder.start();
             isRecording = true;
             recordStartTime = System.currentTimeMillis();
-
+            
             inputArea.setVisibility(View.GONE);
             recordingPreview.setVisibility(View.VISIBLE);
             recordingTimer.setBase(android.os.SystemClock.elapsedRealtime());
@@ -357,7 +653,6 @@ public class GroupChatActivity extends BaseActivity {
         String messageId = groupChatRef.child("messages").push().getKey();
         if (messageId == null) return;
 
-        // Add placeholder message locally
         Message pendingMsg = new Message(messageId, senderId, groupId, "Voice message", System.currentTimeMillis(), "voice", "local:" + path, duration);
         pendingMsg.setSenderName(senderName);
         pendingMsg.setSenderUsername(senderUsername);
@@ -375,12 +670,11 @@ public class GroupChatActivity extends BaseActivity {
                 baos.write(buffer, 0, len);
             }
             byte[] bytes = baos.toByteArray();
+            final long fileSize = bytes.length;
             fis.close();
 
-            // Save copy locally
             com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(this, bytes, "voice", messageId);
 
-            // 2. Encrypt bytes
             javax.crypto.SecretKey fileKey = com.hamraj37.somechat.utils.EncryptionManager.generateAESKey();
             byte[] encryptedBytes = com.hamraj37.somechat.utils.EncryptionManager.encryptRaw(bytes, fileKey);
             String encodedFileKey = com.hamraj37.somechat.utils.EncryptionManager.encodeKey(fileKey);
@@ -394,6 +688,7 @@ public class GroupChatActivity extends BaseActivity {
                             org.json.JSONObject mediaJson = new org.json.JSONObject();
                             mediaJson.put("u", downloadUrl);
                             mediaJson.put("k", encodedFileKey);
+                            mediaJson.put("s", fileSize);
                             String mediaInfo = mediaJson.toString();
 
                             Message message = new Message(messageId, senderId, groupId, "Voice message", System.currentTimeMillis(), "voice", mediaInfo, duration);
@@ -437,212 +732,18 @@ public class GroupChatActivity extends BaseActivity {
         }
     }
 
-    private void setupAttachmentMenuListeners() {
-        findViewById(R.id.option_photo).setOnClickListener(v -> {
-            toggleAttachmentMenu();
-            pickImageLauncher.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
-                    .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE)
-                    .build());
-        });
-        findViewById(R.id.option_video).setOnClickListener(v -> {
-            toggleAttachmentMenu();
-            pickVideoLauncher.launch(new androidx.activity.result.PickVisualMediaRequest.Builder()
-                    .setMediaType(androidx.activity.result.contract.ActivityResultContracts.PickVisualMedia.VideoOnly.INSTANCE)
-                    .build());
-        });
-        findViewById(R.id.option_camera).setOnClickListener(v -> {
-            toggleAttachmentMenu();
-            openCamera();
-        });
-    }
-
-    private void openCamera() {
-        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-            androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.CAMERA}, 201);
-            return;
-        }
-
-        try {
-            File photoFile = File.createTempFile("IMG_", ".jpg", getExternalFilesDir(android.os.Environment.DIRECTORY_PICTURES));
-            photoUri = androidx.core.content.FileProvider.getUriForFile(this, getPackageName() + ".provider", photoFile);
-            takePhotoLauncher.launch(photoUri);
-        } catch (IOException e) {
-            android.util.Log.e("GroupChatActivity", "Error creating photo file", e);
-        }
-    }
-
-    private void toggleAttachmentMenu() {
-        if (attachmentMenu.getVisibility() == View.VISIBLE) {
-            attachmentMenu.animate()
-                    .alpha(0f)
-                    .translationY(attachmentMenu.getHeight())
-                    .setDuration(200)
-                    .withEndAction(() -> attachmentMenu.setVisibility(View.GONE))
-                    .start();
-        } else {
-            attachmentMenu.setVisibility(View.VISIBLE);
-            attachmentMenu.setAlpha(0f);
-            attachmentMenu.setTranslationY(100f);
-            attachmentMenu.animate()
-                    .alpha(1f)
-                    .translationY(0f)
-                    .setDuration(200)
-                    .start();
-        }
-    }
-
-    private void hideAttachmentMenu() {
-        if (attachmentMenu != null && attachmentMenu.getVisibility() == View.VISIBLE) {
-            attachmentMenu.animate()
-                    .alpha(0f)
-                    .translationY(attachmentMenu.getHeight())
-                    .setDuration(200)
-                    .withEndAction(() -> attachmentMenu.setVisibility(View.GONE))
-                    .start();
-        }
-    }
-
-    private void uploadMedia(android.net.Uri uri, String type) {
-        if (senderName == null || senderUsername == null) {
-            Toast.makeText(this, "Please wait, loading user info...", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String messageId = groupChatRef.child("messages").push().getKey();
-        if (messageId == null) return;
-
-        String extension = type.equals("image") ? ".jpg" : ".mp4";
-        String fileName = messageId + extension;
-        String remoteFolder = type.equals("image") ? "group_images" : "group_videos";
-
-        // Add placeholder message locally
-        Message pendingMsg = new Message(messageId, senderId, groupId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, "local:" + uri.toString(), 0);
-        pendingMsg.setSenderName(senderName);
-        pendingMsg.setSenderUsername(senderUsername);
-        messageList.add(pendingMsg);
-        adapter.notifyItemInserted(messageList.size() - 1);
-        chatRecycler.smoothScrollToPosition(messageList.size() - 1);
-
-        try {
-            // 1. Read file to bytes
-            java.io.InputStream inputStream = getContentResolver().openInputStream(uri);
-            if (inputStream == null) return;
-            
-            java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream();
-            byte[] buffer = new byte[8192];
-            int len;
-            while ((len = inputStream.read(buffer)) != -1) {
-                baos.write(buffer, 0, len);
-            }
-            byte[] bytes = baos.toByteArray();
-            inputStream.close();
-
-            // Save a copy locally like WhatsApp
-            com.hamraj37.somechat.utils.MediaUtils.saveMediaLocally(this, bytes, type, messageId);
-
-            // 2. Encrypt bytes
-            javax.crypto.SecretKey fileKey = com.hamraj37.somechat.utils.EncryptionManager.generateAESKey();
-            byte[] encryptedBytes = com.hamraj37.somechat.utils.EncryptionManager.encryptRaw(bytes, fileKey);
-            String encodedFileKey = com.hamraj37.somechat.utils.EncryptionManager.encodeKey(fileKey);
-
-            // 3. Upload encrypted bytes
-            com.hamraj37.somechat.utils.GitHubStorage.uploadBytes(encryptedBytes, remoteFolder, fileName, new com.hamraj37.somechat.utils.GitHubStorage.UploadCallback() {
-                @Override
-                public void onSuccess(String downloadUrl) {
-                    runOnUiThread(() -> {
-                        adapter.removeUploadProgress(messageId);
-                        
-                        // Combine URL and FileKey into a JSON
-                        try {
-                            org.json.JSONObject mediaJson = new org.json.JSONObject();
-                            mediaJson.put("u", downloadUrl);
-                            mediaJson.put("k", encodedFileKey);
-                            String mediaInfo = mediaJson.toString();
-
-                            Message message = new Message(messageId, senderId, groupId, type.substring(0,1).toUpperCase() + type.substring(1), System.currentTimeMillis(), type, mediaInfo, 0);
-                            message.setSenderName(senderName);
-                            message.setSenderUsername(senderUsername);
-                            
-                            if (replyingToMessage != null) {
-                                message.setReplyToId(replyingToMessage.getMessageId());
-                                message.setReplyToName(replyingToMessage.getSenderName());
-                                message.setReplyToText(replyingToMessage.getText());
-                                cancelReply();
-                            }
-
-                            groupChatRef.child("messages").child(messageId).setValue(message);
-                        } catch (Exception e) {
-                            e.printStackTrace();
-                        }
-                    });
-                }
-
-                @Override
-                public void onProgress(int progress) {
-                    runOnUiThread(() -> adapter.updateUploadProgress(messageId, progress));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    runOnUiThread(() -> {
-                        adapter.removeUploadProgress(messageId);
-                        messageList.remove(pendingMsg);
-                        adapter.notifyDataSetChanged();
-                        android.util.Log.e("GroupChatActivity", "Media Upload failed", e);
-                        Toast.makeText(GroupChatActivity.this, "Failed to upload " + type, Toast.LENGTH_SHORT).show();
-                    });
-                }
-            });
-        } catch (Exception e) {
-            android.util.Log.e("GroupChatActivity", "File preparation failed", e);
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 200) {
-            if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                Toast.makeText(this, "Permission granted. Hold the button to record.", Toast.LENGTH_SHORT).show();
-            }
-        } else if (requestCode == 201) {
-            if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                openCamera();
-            }
-        }
-    }
-
     private void fetchSenderName() {
-        FirebaseDatabase.getInstance().getReference("users").child(senderId)
+        String uid = FirebaseAuth.getInstance().getUid();
+        if (uid == null) return;
+        FirebaseDatabase.getInstance().getReference("users").child(uid)
                 .addListenerForSingleValueEvent(new ValueEventListener() {
                     @Override
                     public void onDataChange(@NonNull DataSnapshot snapshot) {
-                        if (snapshot.exists()) {
-                            senderName = snapshot.child("displayName").getValue(String.class);
-                            senderUsername = snapshot.child("username").getValue(String.class);
-                        }
+                        senderName = snapshot.child("displayName").getValue(String.class);
+                        senderUsername = snapshot.child("username").getValue(String.class);
                     }
                     @Override public void onCancelled(@NonNull DatabaseError error) {}
                 });
-    }
-
-    private void setupBackground() {
-        android.content.SharedPreferences prefs = getSharedPreferences("app_settings", android.content.Context.MODE_PRIVATE);
-        String bgPath = prefs.getString("chat_background_path", null);
-        ImageView bgImage = findViewById(R.id.chat_background_image);
-        if (bgPath != null && bgImage != null) {
-            if (bgPath.startsWith("res:")) {
-                int resId = getResources().getIdentifier(bgPath.replace("res:", ""), "drawable", getPackageName());
-                if (resId != 0) com.bumptech.glide.Glide.with(this).load(resId).into(bgImage);
-            } else {
-                java.io.File file = new java.io.File(bgPath);
-                if (file.exists()) {
-                    com.bumptech.glide.Glide.with(this)
-                            .load(file)
-                            .signature(new com.bumptech.glide.signature.ObjectKey(file.lastModified()))
-                            .into(bgImage);
-                }
-            }
-        }
     }
 
     private void setupToolbar() {
@@ -652,18 +753,8 @@ public class GroupChatActivity extends BaseActivity {
             getSupportActionBar().setDisplayShowTitleEnabled(false);
         }
         toolbar.setNavigationOnClickListener(v -> finish());
-
-        TextView toolbarName = findViewById(R.id.toolbar_name);
-        ImageView toolbarAvatar = findViewById(R.id.toolbar_avatar);
-
-        toolbarName.setText(groupName);
-        if (groupAvatar != null && !groupAvatar.isEmpty()) {
-            Glide.with(this).load(groupAvatar).circleCrop().into(toolbarAvatar);
-        } else {
-            toolbarAvatar.setImageResource(R.mipmap.ic_launcher_round);
-        }
-
-        groupInfoContainer.setOnClickListener(v -> {
+        
+        findViewById(R.id.group_info_container).setOnClickListener(v -> {
             Intent intent = new Intent(this, GroupInfoActivity.class);
             intent.putExtra("groupId", groupId);
             startActivity(intent);
@@ -672,7 +763,7 @@ public class GroupChatActivity extends BaseActivity {
 
     private void setupRecyclerView() {
         chatRecycler = findViewById(R.id.chat_recycler);
-        adapter = new MessageAdapter(messageList, true, new MessageAdapter.OnMessageClickListener() {
+        adapter = new MessageAdapter(messageList, new MessageAdapter.OnMessageClickListener() {
             @Override
             public void onReplyClick(String messageId) {
                 for (int i = 0; i < messageList.size(); i++) {
@@ -687,7 +778,6 @@ public class GroupChatActivity extends BaseActivity {
             @Override
             public void onMessageLongClick(Message message, View view) {
                 adapter.toggleSelection(message.getMessageId());
-                showReactionPicker(message, view);
             }
 
             @Override
@@ -703,193 +793,100 @@ public class GroupChatActivity extends BaseActivity {
                 groupChatRef.child("messages").child(message.getMessageId()).child("reactions").child(senderId).setValue(emoji);
             }
         });
-        chatRecycler.setLayoutManager(new LinearLayoutManager(this));
+        LinearLayoutManager layoutManager = new LinearLayoutManager(this);
+        layoutManager.setStackFromEnd(true);
+        chatRecycler.setLayoutManager(layoutManager);
         chatRecycler.setAdapter(adapter);
     }
 
-    private void updateMembershipUI() {
-        if (!isMember) {
-            messageInput.setEnabled(false);
-            messageInput.setHint("You can't send messages to this group");
-            btnSend.setEnabled(false);
-            btnAttachment.setEnabled(false);
-            btnAttachment.setAlpha(0.5f);
-            btnSend.setAlpha(0.5f);
-            hideAttachmentMenu();
-        } else {
-            messageInput.setEnabled(true);
-            messageInput.setHint("Type a message...");
-            btnSend.setEnabled(true);
-            btnAttachment.setEnabled(true);
-            btnAttachment.setAlpha(1.0f);
-            btnSend.setAlpha(1.0f);
-        }
-    }
-
     private void setupFirebase() {
-        groupChatRef = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId);
         messageListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
-                if (!isMember) return; // Extra safety
+                List<Message> pendingUploads = new ArrayList<>();
+                for (Message m : messageList) {
+                    if (m.getMediaUrl() != null && m.getMediaUrl().startsWith("local:")) {
+                        pendingUploads.add(m);
+                    }
+                }
+
+                int previousCount = messageList.size();
                 messageList.clear();
                 pinnedMessages.clear();
-                for (DataSnapshot ds : snapshot.getChildren()) {
-                    Message message = ds.getValue(Message.class);
+                for (DataSnapshot dataSnapshot : snapshot.getChildren()) {
+                    Message message = dataSnapshot.getValue(Message.class);
                     if (message != null) {
-                        if (message.isPinned()) {
-                            pinnedMessages.add(message);
+                        boolean isMeSender = message.getSenderId().equals(senderId);
+                        if ((isMeSender && message.isDeletedBySender()) || (!isMeSender && message.isDeletedByReceiver())) {
+                            continue;
                         }
+
+                        if (message.isPinned()) pinnedMessages.add(message);
+
                         messageList.add(message);
                     }
                 }
 
                 if (!pinnedMessages.isEmpty()) {
-                    if (currentPinnedIndex >= pinnedMessages.size()) {
-                        currentPinnedIndex = 0;
-                    }
+                    if (currentPinnedIndex >= pinnedMessages.size()) currentPinnedIndex = 0;
                     showPinnedMessage(pinnedMessages.get(currentPinnedIndex));
                 } else {
                     pinnedMessageLayout.setVisibility(View.GONE);
                 }
 
+                for (Message pending : pendingUploads) {
+                    boolean alreadyExists = false;
+                    for (Message m : messageList) {
+                        if (m.getMessageId() != null && m.getMessageId().equals(pending.getMessageId())) {
+                            alreadyExists = true;
+                            break;
+                        }
+                    }
+                    if (!alreadyExists) messageList.add(pending);
+                }
+
                 adapter.notifyDataSetChanged();
                 if (!messageList.isEmpty()) {
-                    chatRecycler.scrollToPosition(adapter.getItemCount() - 1);
-                }
-            }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
-        };
-    }
-
-    private void listenForGroupDetails() {
-        groupDetailsRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId);
-        groupDetailsListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                com.hamraj37.somechat.models.Group g = snapshot.getValue(com.hamraj37.somechat.models.Group.class);
-                if (g != null) {
-                    groupName = g.getGroupName();
-                    groupAvatar = g.getGroupAvatar();
-                    
-                    TextView toolbarName = findViewById(R.id.toolbar_name);
-                    ImageView toolbarAvatar = findViewById(R.id.toolbar_avatar);
-                    
-                    toolbarName.setText(groupName);
-                    if (groupAvatar != null && !groupAvatar.isEmpty()) {
-                        Glide.with(GroupChatActivity.this).load(groupAvatar).circleCrop().into(toolbarAvatar);
-                    } else {
-                        toolbarAvatar.setImageResource(R.mipmap.ic_launcher_round);
+                    LinearLayoutManager lm = (LinearLayoutManager) chatRecycler.getLayoutManager();
+                    boolean isAtBottom = lm != null && lm.findLastVisibleItemPosition() >= previousCount - 1;
+                    if (isAtBottom || previousCount == 0) {
+                        chatRecycler.post(() -> chatRecycler.scrollToPosition(adapter.getItemCount() - 1));
                     }
                 }
             }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
+            @Override public void onCancelled(@NonNull DatabaseError error) {}
         };
-        groupDetailsRef.addValueEventListener(groupDetailsListener);
+        groupChatRef.child("messages").limitToLast(50).addValueEventListener(messageListener);
+        checkForwardedMessage();
     }
 
-    private void checkMembership() {
-        membershipRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("members").child(senderId);
-        membershipListener = new ValueEventListener() {
-            @Override
-            public void onDataChange(@NonNull DataSnapshot snapshot) {
-                boolean wasMember = isMember;
-                isMember = snapshot.exists() && Boolean.TRUE.equals(snapshot.getValue(Boolean.class));
-                updateMembershipUI();
-                
-                if (!isMember) {
-                    if (groupChatRef != null && messageListener != null) {
-                        groupChatRef.child("messages").removeEventListener(messageListener);
-                    }
-                } else if (!wasMember || messageList.isEmpty()) {
-                    // Attach listener if it wasn't attached or if we need a fresh load
-                    if (groupChatRef != null && messageListener != null) {
-                        groupChatRef.child("messages").removeEventListener(messageListener); // Avoid duplicates
-                        groupChatRef.child("messages").addValueEventListener(messageListener);
-                    }
+    private void showPinnedMessage(Message message) {
+        pinnedMessageLayout.setVisibility(View.VISIBLE);
+        if (pinnedMessages.size() > 1) {
+            pinnedMessageTitle.setText("Pinned Message (" + (currentPinnedIndex + 1) + "/" + pinnedMessages.size() + ")");
+        } else {
+            pinnedMessageTitle.setText("Pinned Message");
+        }
+        pinnedMessageText.setText(message.getText());
+        pinnedMessageLayout.setOnClickListener(v -> {
+            for (int i = 0; i < messageList.size(); i++) {
+                if (messageList.get(i).getMessageId().equals(message.getMessageId())) {
+                    chatRecycler.smoothScrollToPosition(i + 1);
+                    adapter.highlightMessage(message.getMessageId());
+                    break;
                 }
             }
-
-            @Override
-            public void onCancelled(@NonNull DatabaseError error) {}
-        };
-        membershipRef.addValueEventListener(membershipListener);
-    }
-
-    private void sendMessage() {
-        if (senderName == null || senderUsername == null) {
-            // Still loading user info
-            Toast.makeText(this, "Please wait, loading user info...", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        String text = messageInput.getText().toString().trim();
-        if (TextUtils.isEmpty(text)) return;
-
-        if (editingMessage != null) {
-            updateMessage(editingMessage, text);
-            return;
-        }
-
-        String messageId = groupChatRef.child("messages").push().getKey();
-        Message message = new Message(messageId, senderId, groupId, text, System.currentTimeMillis());
-        message.setSenderName(senderName);
-        message.setSenderUsername(senderUsername);
-
-        if (replyingToMessage != null) {
-            message.setReplyToId(replyingToMessage.getMessageId());
-            message.setReplyToName(replyingToMessage.getSenderName());
-            message.setReplyToText(replyingToMessage.getText());
-            cancelReply();
-        }
-
-        if (messageId != null) {
-            groupChatRef.child("messages").child(messageId).setValue(message);
-            messageInput.setText("");
-        }
-    }
-
-    private void cancelReply() {
-        replyingToMessage = null;
-        replyLayout.setVisibility(View.GONE);
-    }
-
-    private void showReactionPicker(Message message, View anchorView) {
-        View reactionView = getLayoutInflater().inflate(R.layout.layout_reactions, (ViewGroup) anchorView.getParent(), false);
-        android.widget.PopupWindow popupWindow = new android.widget.PopupWindow(reactionView, 
-                ViewGroup.LayoutParams.WRAP_CONTENT, 
-                ViewGroup.LayoutParams.WRAP_CONTENT, true);
-        
-        popupWindow.setElevation(16);
-        popupWindow.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT));
-
-        int[] location = new int[2];
-        anchorView.getLocationOnScreen(location);
-        
-        // Position it above the bubble
-        reactionView.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
-        int x = location[0] + (anchorView.getWidth() / 2) - (reactionView.getMeasuredWidth() / 2);
-        int y = location[1] - reactionView.getMeasuredHeight() - 10;
-        
-        popupWindow.showAtLocation(anchorView, android.view.Gravity.NO_GRAVITY, x, y);
-
-        View.OnClickListener clickListener = v -> {
-            String emoji = ((TextView) v).getText().toString();
-            if (groupChatRef != null) {
-                groupChatRef.child("messages").child(message.getMessageId()).child("reactions").child(senderId).setValue(emoji);
+            if (pinnedMessages.size() > 1) {
+                currentPinnedIndex = (currentPinnedIndex + 1) % pinnedMessages.size();
+                showPinnedMessage(pinnedMessages.get(currentPinnedIndex));
             }
-            popupWindow.dismiss();
-        };
+        });
+    }
 
-        reactionView.findViewById(R.id.react_like).setOnClickListener(clickListener);
-        reactionView.findViewById(R.id.react_love).setOnClickListener(clickListener);
-        reactionView.findViewById(R.id.react_haha).setOnClickListener(clickListener);
-        reactionView.findViewById(R.id.react_wow).setOnClickListener(clickListener);
-        reactionView.findViewById(R.id.react_sad).setOnClickListener(clickListener);
-        reactionView.findViewById(R.id.react_pray).setOnClickListener(clickListener);
+    private void unpinCurrentMessage() {
+        if (pinnedMessages.isEmpty()) return;
+        Message current = pinnedMessages.get(currentPinnedIndex);
+        groupChatRef.child("messages").child(current.getMessageId()).child("pinned").removeValue();
     }
 
     private void updateSelectionUI(int count) {
@@ -898,7 +895,7 @@ public class GroupChatActivity extends BaseActivity {
             selectionCountText.setVisibility(View.VISIBLE);
             selectionActionsContainer.setVisibility(View.VISIBLE);
             selectionCountText.setText(String.valueOf(count));
-
+            
             List<Message> selected = adapter.getSelectedMessages();
             boolean isSingle = count == 1;
             boolean isTextOnly = true;
@@ -912,47 +909,107 @@ public class GroupChatActivity extends BaseActivity {
             findViewById(R.id.btn_reply_selected).setVisibility(isSingle ? View.VISIBLE : View.GONE);
             findViewById(R.id.btn_copy_selected).setVisibility(isSingle && isTextOnly ? View.VISIBLE : View.GONE);
             
-            // Show edit only for single text message sent by me
             boolean isMyMessage = isSingle && selected.get(0).getSenderId().equals(senderId);
             findViewById(R.id.btn_edit_selected).setVisibility(isSingle && isTextOnly && isMyMessage ? View.VISIBLE : View.GONE);
 
             androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
-            toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material);
+            toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material); 
             toolbar.setNavigationOnClickListener(v -> adapter.clearSelection());
         } else {
             groupInfoContainer.setVisibility(View.VISIBLE);
             selectionCountText.setVisibility(View.GONE);
             selectionActionsContainer.setVisibility(View.GONE);
-
+            
             androidx.appcompat.widget.Toolbar toolbar = findViewById(R.id.toolbar);
             toolbar.setNavigationIcon(androidx.appcompat.R.drawable.abc_ic_ab_back_material);
             toolbar.setNavigationOnClickListener(v -> finish());
         }
     }
 
-    private void copySelectedMessages() {
-        List<Message> selected = adapter.getSelectedMessages();
-        if (selected.isEmpty()) return;
+    private void hideAttachmentMenu() {
+        if (attachmentMenu != null && attachmentMenu.getVisibility() == View.VISIBLE) {
+            attachmentMenu.animate()
+                    .alpha(0f)
+                    .translationY(attachmentMenu.getHeight())
+                    .setDuration(200)
+                    .withEndAction(() -> attachmentMenu.setVisibility(View.GONE))
+                    .start();
+        }
+    }
 
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < selected.size(); i++) {
-            Message m = selected.get(i);
-            String text;
-            boolean isMe = m.getSenderId().equals(senderId);
-            if (m.getType() == null || m.getType().equals("text")) {
-                text = com.hamraj37.somechat.utils.EncryptionManager.decrypt(m.getText(), this, isMe);
-            } else {
-                text = m.getType();
-            }
-            sb.append(text);
-            if (i < selected.size() - 1) sb.append("\n");
+    private void showReplyLayout(Message message) {
+        replyingToMessage = message;
+        replyLayout.setVisibility(View.VISIBLE);
+        replyName.setText(message.getSenderName());
+        replyText.setText(message.getText());
+        messageInput.requestFocus();
+    }
+
+    private void cancelReply() {
+        replyingToMessage = null;
+        replyLayout.setVisibility(View.GONE);
+    }
+
+    private void enterEditMode(Message message) {
+        editingMessage = message;
+        editLayout.setVisibility(View.VISIBLE);
+        editTextPreview.setText(message.getText());
+        messageInput.setText(message.getText());
+        messageInput.requestFocus();
+        btnSend.setImageResource(android.R.drawable.ic_menu_save);
+    }
+
+    private void cancelEdit() {
+        editingMessage = null;
+        editLayout.setVisibility(View.GONE);
+        messageInput.setText("");
+        btnSend.setImageResource(android.R.drawable.ic_btn_speak_now);
+    }
+
+    private void sendMessage() {
+        String text = messageInput.getText().toString().trim();
+        if (TextUtils.isEmpty(text)) return;
+
+        if (editingMessage != null) {
+            groupChatRef.child("messages").child(editingMessage.getMessageId()).child("text").setValue(text);
+            groupChatRef.child("messages").child(editingMessage.getMessageId()).child("edited").setValue(true);
+            cancelEdit();
+            return;
         }
 
-        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-        ClipData clip = ClipData.newPlainText("messages", sb.toString());
-        if (clipboard != null) {
+        String messageId = groupChatRef.child("messages").push().getKey();
+        if (messageId == null) return;
+
+        Message message = new Message(messageId, senderId, groupId, text, System.currentTimeMillis());
+        message.setSenderName(senderName);
+        message.setSenderUsername(senderUsername);
+
+        if (replyingToMessage != null) {
+            message.setReplyToId(replyingToMessage.getMessageId());
+            message.setReplyToName(replyingToMessage.getSenderName());
+            message.setReplyToText(replyingToMessage.getText());
+            cancelReply();
+        }
+
+        groupChatRef.child("messages").child(messageId).setValue(message);
+        messageInput.setText("");
+    }
+
+    private void deleteSelectedMessages() {
+        List<Message> selected = adapter.getSelectedMessages();
+        for (Message m : selected) {
+            groupChatRef.child("messages").child(m.getMessageId()).removeValue();
+        }
+        adapter.clearSelection();
+    }
+
+    private void copySelectedMessages() {
+        List<Message> selected = adapter.getSelectedMessages();
+        if (selected.size() == 1) {
+            ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+            ClipData clip = ClipData.newPlainText("message", selected.get(0).getText());
             clipboard.setPrimaryClip(clip);
-            Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "Copied", Toast.LENGTH_SHORT).show();
         }
         adapter.clearSelection();
     }
@@ -965,186 +1022,20 @@ public class GroupChatActivity extends BaseActivity {
         }
     }
 
-    private void showReplyLayout(Message message) {
-        replyingToMessage = message;
-        cancelEdit();
-        replyLayout.setVisibility(View.VISIBLE);
-        
-        replyName.setText(message.getSenderName());
-        
-        String displayText;
-        boolean isMe = message.getSenderId().equals(senderId);
-        if (message.getType() == null || "text".equals(message.getType())) {
-            displayText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, isMe);
-        } else {
-            String type = message.getType();
-            displayText = type.substring(0, 1).toUpperCase() + type.substring(1);
-        }
-        replyText.setText(displayText);
-        
-        messageInput.requestFocus();
-        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.showSoftInput(messageInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-        }
-    }
-
-    private void forwardSelectedMessages() {
-        List<Message> selected = adapter.getSelectedMessages();
-        if (selected.isEmpty()) return;
-
-        ArrayList<Message> forwardList = new ArrayList<>();
-        for (Message m : selected) {
-            forwardList.add(prepareMessageForForward(m));
-        }
-
-        Intent intent = new Intent(this, SearchUserActivity.class);
-        intent.putExtra("forward_message", true);
-        intent.putExtra("forward_list", forwardList);
-        startActivity(intent);
-        
-        adapter.clearSelection();
-        Toast.makeText(this, "Select a user to forward to", Toast.LENGTH_SHORT).show();
-    }
-
-    private Message prepareMessageForForward(Message message) {
-        Message f = new Message();
-        f.setType(message.getType());
-        f.setDuration(message.getDuration());
-        boolean isMe = message.getSenderId().equals(senderId);
-        if (message.getType() == null || "text".equals(message.getType())) {
-            f.setText(com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, isMe));
-        } else {
-            f.setMediaUrl(com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getMediaUrl(), this, isMe));
-        }
-        f.setForwarded(true);
-        return f;
-    }
-
-    private void deleteSelectedMessages() {
-        List<Message> selected = adapter.getSelectedMessages();
-        if (selected.isEmpty()) return;
-
-        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
-                .setTitle("Delete " + selected.size() + " messages?")
-                .setMessage("Delete these messages from this group for you?")
-                .setPositiveButton("Delete for me", (dialog, which) -> {
-                    for (Message m : selected) {
-                        groupChatRef.child("messages").child(m.getMessageId()).removeValue();
-                    }
-                    adapter.clearSelection();
-                })
-                .setNegativeButton("Cancel", null)
-                .show();
-    }
-
     private void pinSelectedMessages() {
         List<Message> selected = adapter.getSelectedMessages();
-        if (selected.isEmpty()) return;
-
         for (Message m : selected) {
             groupChatRef.child("messages").child(m.getMessageId()).child("pinned").setValue(true);
         }
         adapter.clearSelection();
-        Toast.makeText(this, selected.size() > 1 ? "Messages pinned" : "Message pinned", Toast.LENGTH_SHORT).show();
-    }
-
-    private void unpinCurrentMessage() {
-        if (pinnedMessages.isEmpty() || currentPinnedIndex >= pinnedMessages.size()) return;
-        
-        Message current = pinnedMessages.get(currentPinnedIndex);
-        groupChatRef.child("messages").child(current.getMessageId()).child("pinned").setValue(false);
-        Toast.makeText(this, "Message unpinned", Toast.LENGTH_SHORT).show();
-    }
-
-    private void showPinnedMessage(Message message) {
-        pinnedMessageLayout.setVisibility(View.VISIBLE);
-        
-        if (pinnedMessages.size() > 1) {
-            pinnedMessageTitle.setText("Pinned Message (" + (currentPinnedIndex + 1) + "/" + pinnedMessages.size() + ")");
-        } else {
-            pinnedMessageTitle.setText("Pinned Message");
-        }
-
-        boolean isMe = message.getSenderId().equals(senderId);
-        
-        String displayText;
-        if (message.getType() == null || "text".equals(message.getType())) {
-            displayText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, isMe);
-        } else {
-            String type = message.getType();
-            displayText = type.substring(0, 1).toUpperCase() + type.substring(1);
-        }
-        pinnedMessageText.setText(displayText);
-        
-        pinnedMessageLayout.setOnClickListener(v -> {
-            // Scroll to current pinned message
-            for (int i = 0; i < messageList.size(); i++) {
-                if (messageList.get(i).getMessageId().equals(message.getMessageId())) {
-                    chatRecycler.smoothScrollToPosition(i + 1);
-                    adapter.highlightMessage(message.getMessageId());
-                    break;
-                }
-            }
-            
-            // Cycle to next one for the next view
-            if (pinnedMessages.size() > 1) {
-                currentPinnedIndex = (currentPinnedIndex + 1) % pinnedMessages.size();
-                showPinnedMessage(pinnedMessages.get(currentPinnedIndex));
-            }
-        });
     }
 
     private void editSelectedMessage() {
         List<Message> selected = adapter.getSelectedMessages();
         if (selected.size() == 1) {
-            Message m = selected.get(0);
-            if (m.getSenderId().equals(senderId) && (m.getType() == null || m.getType().equals("text"))) {
-                enterEditMode(m);
-                adapter.clearSelection();
-            }
+            enterEditMode(selected.get(0));
+            adapter.clearSelection();
         }
-    }
-
-    private void enterEditMode(Message message) {
-        editingMessage = message;
-        cancelReply(); // Can't edit and reply at the same time
-        
-        editLayout.setVisibility(View.VISIBLE);
-        String decryptedText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(message.getText(), this, true);
-        editTextPreview.setText(decryptedText);
-        
-        messageInput.setText(decryptedText);
-        messageInput.requestFocus();
-        messageInput.setSelection(messageInput.getText().length());
-        
-        btnSend.setImageResource(android.R.drawable.ic_menu_save); // Change icon to save/check
-        
-        android.view.inputmethod.InputMethodManager imm = (android.view.inputmethod.InputMethodManager) getSystemService(android.content.Context.INPUT_METHOD_SERVICE);
-        if (imm != null) {
-            imm.showSoftInput(messageInput, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT);
-        }
-    }
-
-    private void cancelEdit() {
-        editingMessage = null;
-        editLayout.setVisibility(View.GONE);
-        messageInput.setText("");
-        btnSend.setImageResource(android.R.drawable.ic_btn_speak_now);
-    }
-
-    private void updateMessage(Message message, String newText) {
-        java.util.Map<String, Object> updates = new java.util.HashMap<>();
-        updates.put("text", newText); // Group chat doesn't seem to use E2EE for text based on sendMessage
-        updates.put("edited", true);
-
-        groupChatRef.child("messages").child(message.getMessageId()).updateChildren(updates)
-                .addOnSuccessListener(aVoid -> {
-                    cancelEdit();
-                })
-                .addOnFailureListener(e -> {
-                    Toast.makeText(this, "Failed to update message", Toast.LENGTH_SHORT).show();
-                });
     }
 
     @Override
