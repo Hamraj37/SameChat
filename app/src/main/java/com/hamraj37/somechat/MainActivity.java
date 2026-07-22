@@ -124,42 +124,74 @@ public class MainActivity extends BaseActivity {
     }
 
     private void checkAndRequestPermissions() {
-        java.util.List<String> permissionsNeeded = new java.util.ArrayList<>();
-
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.POST_NOTIFICATIONS) !=
                     android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                permissionsNeeded.add(android.Manifest.permission.POST_NOTIFICATIONS);
+                requestPermissionWithRationale(android.Manifest.permission.POST_NOTIFICATIONS,
+                        "Notifications", "SomeChat needs notification permission to alert you about new messages and calls.", 102);
+                return;
             }
+        }
+
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissionWithRationale(android.Manifest.permission.CAMERA,
+                    "Camera", "Camera access is required to take photos and make video calls.", 103);
+            return;
+        }
+
+        if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissionWithRationale(android.Manifest.permission.RECORD_AUDIO,
+                    "Microphone", "Microphone access is required for voice messages and audio calls.", 104);
+            return;
         }
 
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
             if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.MANAGE_OWN_CALLS) !=
                     android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                permissionsNeeded.add(android.Manifest.permission.MANAGE_OWN_CALLS);
+                androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.MANAGE_OWN_CALLS}, 105);
+                return;
             }
         }
 
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            if (androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.FOREGROUND_SERVICE_PHONE_CALL) !=
-                    android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                permissionsNeeded.add(android.Manifest.permission.FOREGROUND_SERVICE_PHONE_CALL);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+            if (!android.provider.Settings.canDrawOverlays(this)) {
+                showOverlayPermissionDialog();
             }
         }
+    }
 
-        if (!permissionsNeeded.isEmpty()) {
-            androidx.core.app.ActivityCompat.requestPermissions(this, permissionsNeeded.toArray(new String[0]), 101);
-        } else {
-            // Service will be started via FCM when needed
-        }
+    private void requestPermissionWithRationale(String permission, String title, String message, int requestCode) {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle(title)
+                .setMessage(message)
+                .setPositiveButton("Grant", (dialog, which) -> {
+                    androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{permission}, requestCode);
+                })
+                .setNegativeButton("Later", (dialog, which) -> checkAndRequestPermissions()) // Move to next one anyway
+                .setCancelable(false)
+                .show();
     }
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 101) {
-            // Permissions handled, service will be started via FCM when needed
-        }
+        // After any permission is handled, check for the next one in the sequence
+        checkAndRequestPermissions();
+    }
+
+    private void showOverlayPermissionDialog() {
+        new com.google.android.material.dialog.MaterialAlertDialogBuilder(this)
+                .setTitle("Overlay Permission")
+                .setMessage("SomeChat needs 'Display over other apps' permission to show incoming call screens while you are using other apps.")
+                .setPositiveButton("Settings", (dialog, which) -> {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:" + getPackageName()));
+                    startActivity(intent);
+                })
+                .setNegativeButton("Later", null)
+                .show();
     }
 
     private void startCallService() {

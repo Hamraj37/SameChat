@@ -42,6 +42,19 @@ public class LoginActivity extends BaseActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        
+        // Handle Deep Link
+        android.net.Uri deepLinkData = getIntent().getData();
+        if (deepLinkData != null && deepLinkData.toString().startsWith("https://hamraj37.github.io/SomeChat")) {
+            String uid = deepLinkData.getQueryParameter("uid");
+            if (uid != null) {
+                Intent intent = new Intent(this, ProfileInfoActivity.class);
+                intent.putExtra("uid", uid);
+                intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                startActivity(intent);
+            }
+        }
+
         setContentView(R.layout.activity_login);
 
         mAuth = FirebaseAuth.getInstance();

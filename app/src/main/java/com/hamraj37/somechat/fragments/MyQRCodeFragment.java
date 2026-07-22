@@ -90,7 +90,7 @@ public class MyQRCodeFragment extends Fragment {
     }
 
     private void generateQRCode(ImageView imageView) {
-        String qrData = "somechat_profile:" + uid;
+        String qrData = "https://hamraj37.github.io/SomeChat?uid=" + uid;
         try {
             BarcodeEncoder barcodeEncoder = new BarcodeEncoder();
             Bitmap bitmap = barcodeEncoder.encodeBitmap(qrData, BarcodeFormat.QR_CODE, 800, 800);
@@ -101,7 +101,7 @@ public class MyQRCodeFragment extends Fragment {
     }
 
     private void generateQRCodeWithLogo(ImageView imageView, Bitmap logo) {
-        String qrData = "somechat_profile:" + uid;
+        String qrData = "https://hamraj37.github.io/SomeChat?uid=" + uid;
         try {
             com.google.zxing.qrcode.QRCodeWriter writer = new com.google.zxing.qrcode.QRCodeWriter();
             java.util.Map<com.google.zxing.EncodeHintType, Object> hints = new java.util.EnumMap<>(com.google.zxing.EncodeHintType.class);

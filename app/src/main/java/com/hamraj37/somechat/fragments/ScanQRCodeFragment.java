@@ -5,7 +5,6 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -19,6 +18,8 @@ public class ScanQRCodeFragment extends Fragment {
 
     private CompoundBarcodeView barcodeView;
 
+    private boolean isProcessing = false;
+
     @Nullable
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
@@ -31,19 +32,34 @@ public class ScanQRCodeFragment extends Fragment {
         }
         
         barcodeView.decodeContinuous(result -> {
-            if (result.getText() != null) {
-                String scannedUid = result.getText();
-                if (scannedUid.startsWith("somechat_profile:")) {
-                    barcodeView.pause();
-                    String uid = scannedUid.substring("somechat_profile:".length());
-                    Intent intent = new Intent(getContext(), ProfileInfoActivity.class);
-                    intent.putExtra("uid", uid);
-                    startActivity(intent);
-                    if (getActivity() != null) getActivity().finish();
-                } else {
-                    Toast.makeText(getContext(), R.string.invalid_qr, Toast.LENGTH_SHORT).show();
+            if (isProcessing || result.getText() == null) return;
+            
+            String scannedData = result.getText().trim();
+            String uid = null;
+            
+            if (scannedData.startsWith("somechat_profile:")) {
+                uid = scannedData.substring("somechat_profile:".length());
+            } else if (scannedData.contains("hamraj37.github.io/SomeChat")) {
+                try {
+                    android.net.Uri uri = android.net.Uri.parse(scannedData);
+                    uid = uri.getQueryParameter("uid");
+                } catch (Exception ignored) {}
+            }
+            
+            if (uid != null && !uid.isEmpty()) {
+                isProcessing = true;
+                barcodeView.pause();
+                
+                Intent intent = new Intent(getContext(), ProfileInfoActivity.class);
+                intent.putExtra("uid", uid);
+                startActivity(intent);
+                
+                if (getActivity() != null) {
+                    getActivity().finish();
                 }
             }
+            // Removed the "Invalid QR" toast because it triggers too often in continuous mode.
+            // If scanning fails, the user simply waits or tries another angle.
         });
 
         return view;
@@ -52,6 +68,7 @@ public class ScanQRCodeFragment extends Fragment {
     @Override
     public void onResume() {
         super.onResume();
+        isProcessing = false;
         barcodeView.resume();
     }
 
