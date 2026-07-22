@@ -142,6 +142,7 @@
     <string name="audio">Audio</string>
     <string name="video">Video</string>
     <string name="friends">Friends</string>
+    <string name="friend_requests">Friend Requests</string>
     <string name="no_friends_yet">No friends yet</string>
     <string name="requests">Requests</string>
     <string name="pending">Pending</string>

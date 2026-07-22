@@ -16,6 +16,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone"
+            tools:visibility="visible"
             android:paddingTop="8dp"
             android:paddingBottom="4dp">
 
@@ -24,7 +25,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="16dp"
                 android:layout_marginBottom="8dp"
-                android:text="Friend Requests"
+                android:text="@string/friend_requests"
                 android:textAppearance="?attr/textAppearanceLabelLarge"
                 android:textColor="?attr/colorPrimary"
                 android:textStyle="bold" />
@@ -33,7 +34,8 @@
                 android:id="@+id/requests_recycler"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false" />
+                android:nestedScrollingEnabled="false"
+                tools:listitem="@layout/item_friend_request" />
 
             <View
                 android:layout_width="match_parent"
@@ -50,6 +52,7 @@
             android:layout_height="wrap_content"
             android:orientation="vertical"
             android:visibility="gone"
+            tools:visibility="visible"
             android:paddingTop="8dp"
             android:paddingBottom="4dp">
 
@@ -67,7 +70,8 @@
                 android:id="@+id/group_invites_recycler"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false" />
+                android:nestedScrollingEnabled="false"
+                tools:listitem="@layout/item_group_invite" />
 
             <View
                 android:layout_width="match_parent"
@@ -87,6 +91,7 @@
             android:paddingBottom="140dp"
             app:layoutManager="androidx.recyclerview.widget.GridLayoutManager"
             app:spanCount="4"
+            tools:listitem="@layout/item_transform"
             tools:context=".ui.transform.TransformFragment" />
 
     </LinearLayout>

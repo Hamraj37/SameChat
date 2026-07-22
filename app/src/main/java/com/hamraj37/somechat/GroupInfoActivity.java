@@ -196,7 +196,7 @@ public class GroupInfoActivity extends BaseActivity {
                         String adminName = snapshot.getValue(String.class);
                         if (adminName == null) adminName = "Admin";
 
-                        String messageId = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").push().getKey();
+                        String messageId = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").push().getKey();
                         if (messageId != null) {
                             com.hamraj37.somechat.models.Message systemMsg = new com.hamraj37.somechat.models.Message();
                             systemMsg.setMessageId(messageId);
@@ -204,7 +204,7 @@ public class GroupInfoActivity extends BaseActivity {
                             systemMsg.setType("system");
                             systemMsg.setText(adminName + (madeAdmin ? " made " : " removed ") + member.getDisplayName() + (madeAdmin ? " a group admin" : " as group admin"));
                             systemMsg.setTimestamp(System.currentTimeMillis());
-                            FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").child(messageId).setValue(systemMsg);
+                            FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").child(messageId).setValue(systemMsg);
                         }
                     }
                     @Override public void onCancelled(@NonNull DatabaseError error) {}
@@ -251,7 +251,7 @@ public class GroupInfoActivity extends BaseActivity {
                         String adminName = snapshot.getValue(String.class);
                         if (adminName == null) adminName = "Admin";
 
-                        String messageId = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").push().getKey();
+                        String messageId = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").push().getKey();
                         if (messageId != null) {
                             com.hamraj37.somechat.models.Message systemMsg = new com.hamraj37.somechat.models.Message();
                             systemMsg.setMessageId(messageId);
@@ -259,7 +259,7 @@ public class GroupInfoActivity extends BaseActivity {
                             systemMsg.setType("system");
                             systemMsg.setText(adminName + " removed " + member.getDisplayName());
                             systemMsg.setTimestamp(System.currentTimeMillis());
-                            FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").child(messageId).setValue(systemMsg);
+                            FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").child(messageId).setValue(systemMsg);
                         }
                     }
 
@@ -389,7 +389,7 @@ public class GroupInfoActivity extends BaseActivity {
                         String myName = snapshot.getValue(String.class);
                         if (myName == null) myName = "Admin";
                         
-                        String messageId = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").push().getKey();
+                        String messageId = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").push().getKey();
                         if (messageId != null) {
                             com.hamraj37.somechat.models.Message systemMsg = new com.hamraj37.somechat.models.Message();
                             systemMsg.setMessageId(messageId);
@@ -397,7 +397,7 @@ public class GroupInfoActivity extends BaseActivity {
                             systemMsg.setType("system");
                             systemMsg.setText(myName + " changed the group name to \"" + newName + "\"");
                             systemMsg.setTimestamp(System.currentTimeMillis());
-                            FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").child(messageId).setValue(systemMsg);
+                            FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").child(messageId).setValue(systemMsg);
                         }
                     }
                     @Override public void onCancelled(@NonNull DatabaseError error) {}
@@ -500,15 +500,11 @@ public class GroupInfoActivity extends BaseActivity {
         if (group == null) return;
 
         DatabaseReference groupRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId);
-        DatabaseReference groupChatsRef = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId);
 
         // 1. Remove group from all members' "groups" node
         if (group.getMembers() != null) {
             for (String memberId : group.getMembers().keySet()) {
                 FirebaseDatabase.getInstance().getReference("users").child(memberId).child("groups").child(groupId).removeValue();
-                
-                // Remove from their local database too if possible (but we can't easily trigger that for others)
-                // They will see it's gone when they try to access it or it syncs
             }
         }
 
@@ -517,10 +513,9 @@ public class GroupInfoActivity extends BaseActivity {
             com.hamraj37.somechat.db.AppDatabase.getDatabase(GroupInfoActivity.this).chatItemDao().deleteByUid(groupId);
         });
 
-        // 3. Delete group metadata and messages
+        // 3. Delete group (metadata and messages are under same node now)
         groupRef.removeValue().addOnCompleteListener(task -> {
             if (task.isSuccessful()) {
-                groupChatsRef.removeValue();
                 Toast.makeText(this, "Group deleted", Toast.LENGTH_SHORT).show();
                 Intent intent = new Intent(this, MainActivity.class);
                 intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -553,7 +548,7 @@ public class GroupInfoActivity extends BaseActivity {
                         if (myName == null) myName = "A member";
                         
                         // 2. Post system message
-                        String messageId = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").push().getKey();
+                        String messageId = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").push().getKey();
                         if (messageId != null) {
                             com.hamraj37.somechat.models.Message systemMsg = new com.hamraj37.somechat.models.Message();
                             systemMsg.setMessageId(messageId);
@@ -561,7 +556,7 @@ public class GroupInfoActivity extends BaseActivity {
                             systemMsg.setType("system");
                             systemMsg.setText(myName + " left the group");
                             systemMsg.setTimestamp(System.currentTimeMillis());
-                            FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages").child(messageId).setValue(systemMsg);
+                            FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages").child(messageId).setValue(systemMsg);
                         }
 
                         // 3. Remove from members list
@@ -578,11 +573,9 @@ public class GroupInfoActivity extends BaseActivity {
                                 });
 
                                 // 4. If I was admin and there are other members, maybe assign new admin?
-                                // For now, if no members left, delete the group metadata
+                                // For now, if no members left, delete the group
                                 if (group.getMembers() != null && group.getMembers().size() <= 1) {
                                     FirebaseDatabase.getInstance().getReference("groups").child(groupId).removeValue();
-                                    // Optionally delete messages too
-                                    FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).removeValue();
                                 }
 
                                 Toast.makeText(GroupInfoActivity.this, "Left group", Toast.LENGTH_SHORT).show();

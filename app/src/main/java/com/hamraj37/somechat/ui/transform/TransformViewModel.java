@@ -34,9 +34,14 @@ public class TransformViewModel extends AndroidViewModel {
 
     private final MutableLiveData<List<ChatItem>> mAllChats = new MutableLiveData<>();
     private final MutableLiveData<List<ChatItem>> mFilteredChats = new MutableLiveData<>();
-    private final Map<String, ChatItem> chatsMap = new HashMap<>();
     private final Map<String, String> nameCache = new HashMap<>();
     private final Map<String, String> photoCache = new HashMap<>();
+    private final Map<String, String> messageCache = new HashMap<>();
+    private final Map<String, String> typeCache = new HashMap<>();
+    private final Map<String, String> timeCache = new HashMap<>();
+    private final Map<String, Long> timestampCache = new HashMap<>();
+    private final Map<String, Boolean> onlineCache = new HashMap<>();
+    private final Map<String, Integer> unreadCache = new HashMap<>();
     private final java.util.Set<String> observedFriends = new java.util.HashSet<>();
     private final java.util.Set<String> observedGroups = new java.util.HashSet<>();
     private final Map<String, List<ValueEventListener>> listenerMap = new HashMap<>();
@@ -61,7 +66,6 @@ public class TransformViewModel extends AndroidViewModel {
 
     private final Observer<List<ChatItemEntity>> roomObserver = entities -> {
         List<ChatItem> items = new ArrayList<>();
-        chatsMap.clear();
         for (ChatItemEntity entity : entities) {
             ChatItem item = new ChatItem(
                     entity.getName(),
@@ -77,15 +81,27 @@ public class TransformViewModel extends AndroidViewModel {
                     entity.isGroup()
             );
             items.add(item);
-            chatsMap.put(item.getUid(), item);
             
             // Seed memory cache
+            String id = entity.getUid();
             if (entity.getName() != null && !entity.getName().contains("Loading")) {
-                nameCache.put(entity.getUid(), entity.getName());
+                nameCache.put(id, entity.getName());
             }
             if (entity.getPhotoUrl() != null) {
-                photoCache.put(entity.getUid(), entity.getPhotoUrl());
+                photoCache.put(id, entity.getPhotoUrl());
             }
+            if (entity.getLastMessage() != null && !entity.getLastMessage().equals("No messages yet")) {
+                messageCache.put(id, entity.getLastMessage());
+            }
+            if (entity.getLastMessageType() != null) {
+                typeCache.put(id, entity.getLastMessageType());
+            }
+            if (entity.getTime() != null) {
+                timeCache.put(id, entity.getTime());
+            }
+            timestampCache.put(id, entity.getTimestamp());
+            onlineCache.put(id, entity.isOnline());
+            unreadCache.put(id, entity.getUnreadCount());
         }
         mAllChats.setValue(items);
         filter(currentQuery);
@@ -143,14 +159,13 @@ public class TransformViewModel extends AndroidViewModel {
                             }
                         }
 
-                        java.util.Iterator<String> iterator = observedFriends.iterator();
-                        while (iterator.hasNext()) {
-                            String observedId = iterator.next();
-                            if (!currentFriends.contains(observedId)) {
-                                stopObserving(observedId);
-                                iterator = observedFriends.iterator(); // Refresh iterator after modification
-                                AppDatabase.databaseWriteExecutor.execute(() -> chatItemDao.deleteByUid(observedId));
-                            }
+                        List<String> toRemove = new ArrayList<>();
+                        for (String id : observedFriends) {
+                            if (!currentFriends.contains(id)) toRemove.add(id);
+                        }
+                        for (String id : toRemove) {
+                            stopObserving(id);
+                            AppDatabase.databaseWriteExecutor.execute(() -> chatItemDao.deleteByUid(id));
                         }
                     }
                     @Override public void onCancelled(@NonNull DatabaseError error) {}
@@ -221,14 +236,13 @@ public class TransformViewModel extends AndroidViewModel {
                                 }
                             }
                         }
-                        java.util.Iterator<String> iterator = observedGroups.iterator();
-                        while (iterator.hasNext()) {
-                            String observedId = iterator.next();
-                            if (!currentGroups.contains(observedId)) {
-                                stopObserving(observedId);
-                                iterator = observedGroups.iterator(); // Refresh iterator
-                                AppDatabase.databaseWriteExecutor.execute(() -> chatItemDao.deleteByUid(observedId));
-                            }
+                        List<String> toRemove = new ArrayList<>();
+                        for (String id : observedGroups) {
+                            if (!currentGroups.contains(id)) toRemove.add(id);
+                        }
+                        for (String id : toRemove) {
+                            stopObserving(id);
+                            AppDatabase.databaseWriteExecutor.execute(() -> chatItemDao.deleteByUid(id));
                         }
                     }
                     @Override public void onCancelled(@NonNull DatabaseError error) {}
@@ -237,28 +251,25 @@ public class TransformViewModel extends AndroidViewModel {
 
     private void observeGroup(String groupId) {
         DatabaseReference groupRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId);
-        addListener(groupId, groupRef, new ValueEventListener() {
+        
+        // Listen only to name and avatar to avoid triggering on every message
+        ValueEventListener metadataListener = new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot snapshot) {
                 if (!snapshot.exists()) return;
-                com.hamraj37.somechat.models.Group group = snapshot.getValue(com.hamraj37.somechat.models.Group.class);
+                
                 String name = null, photo = null;
-                if (group != null) {
-                    name = group.getGroupName();
-                    photo = group.getGroupAvatar();
-                }
-                if (name == null || name.isEmpty()) {
-                    name = snapshot.child("name").getValue(String.class);
-                    if (name == null) name = snapshot.child("groupName").getValue(String.class);
-                }
-                if (photo == null || photo.isEmpty()) {
-                    photo = snapshot.child("avatar").getValue(String.class);
-                    if (photo == null) photo = snapshot.child("groupAvatar").getValue(String.class);
-                }
+                if (snapshot.hasChild("groupName")) name = snapshot.child("groupName").getValue(String.class);
+                else if (snapshot.hasChild("name")) name = snapshot.child("name").getValue(String.class);
+                
+                if (snapshot.hasChild("groupAvatar")) photo = snapshot.child("groupAvatar").getValue(String.class);
+                else if (snapshot.hasChild("avatar")) photo = snapshot.child("avatar").getValue(String.class);
+                
                 updateGroupChatItem(groupId, name, photo, null);
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}
-        });
+        };
+        addListener(groupId, groupRef, metadataListener);
 
         DatabaseReference msgRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages");
         addListener(groupId, msgRef.limitToLast(1), new ValueEventListener() {
@@ -269,6 +280,9 @@ public class TransformViewModel extends AndroidViewModel {
                         Message message = ds.getValue(Message.class);
                         if (message != null) updateGroupChatItem(groupId, null, null, message);
                     }
+                } else {
+                    // No messages yet
+                    updateGroupChatItem(groupId, null, null, null);
                 }
             }
             @Override public void onCancelled(@NonNull DatabaseError error) {}
@@ -278,7 +292,7 @@ public class TransformViewModel extends AndroidViewModel {
     private synchronized void updateGroupChatItem(String groupId, String groupName, String photo, Message lastMsg) {
         if (!observedGroups.contains(groupId)) return;
         
-        ChatItem existing = chatsMap.get(groupId);
+        // 1. Update Name and Photo
         String name = groupName;
         if (name == null || name.isEmpty()) {
             name = nameCache.get(groupId);
@@ -289,23 +303,64 @@ public class TransformViewModel extends AndroidViewModel {
         } else nameCache.put(groupId, name);
 
         String photoUrl = photo;
-        if (photoUrl == null || photoUrl.isEmpty()) photoUrl = photoCache.get(groupId);
-        else photoCache.put(groupId, photoUrl);
+        if (photoUrl == null || photoUrl.isEmpty()) {
+            photoUrl = photoCache.get(groupId);
+        } else photoCache.put(groupId, photoUrl);
 
+        // 2. Update Message
         String displayMsgText;
         String type;
+        String time;
+        long timestamp;
+
         if (lastMsg != null) {
             type = lastMsg.getType();
             if (type == null) type = "text";
-            String sender = lastMsg.getSenderId().equals(FirebaseAuth.getInstance().getUid()) ? "You" : lastMsg.getSenderName();
-            displayMsgText = (sender != null ? sender + ": " : "") + lastMsg.getText();
+            
+            String sender;
+            if ("system".equals(lastMsg.getSenderId())) {
+                sender = null; // No prefix for system messages
+            } else {
+                String sName = lastMsg.getSenderName();
+                if (sName == null || sName.isEmpty()) sName = "Member";
+                sender = lastMsg.getSenderId().equals(FirebaseAuth.getInstance().getUid()) ? "You" : sName;
+            }
+            
+            String msgText = lastMsg.getText();
+            if (msgText == null) msgText = "";
+            
+            // Decrypt if it's a text message (others like 'image', 'file' usually have non-encrypted preview text)
+            if ("text".equals(type)) {
+                msgText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(msgText, getApplication(), lastMsg.getSenderId().equals(FirebaseAuth.getInstance().getUid()));
+            } else if ("image".equals(type)) {
+                msgText = "Photo";
+            } else if ("voice".equals(type)) {
+                msgText = "Voice message";
+            }
+            
+            displayMsgText = (sender != null ? sender + ": " : "") + msgText;
+            time = formatTime(lastMsg.getTimestamp());
+            timestamp = lastMsg.getTimestamp();
+            
+            // Update Caches
+            messageCache.put(groupId, displayMsgText);
+            typeCache.put(groupId, type);
+            timeCache.put(groupId, time);
+            timestampCache.put(groupId, timestamp);
         } else {
-            displayMsgText = existing != null ? existing.getLastMessage() : "No messages yet";
-            type = existing != null ? existing.getLastMessageType() : "text";
+            // Metadata update: check cache first
+            displayMsgText = messageCache.getOrDefault(groupId, "No messages yet");
+            if (displayMsgText == null) displayMsgText = "No messages yet";
+            
+            type = typeCache.getOrDefault(groupId, "text");
+            if (type == null) type = "text";
+            
+            time = timeCache.getOrDefault(groupId, "");
+            if (time == null) time = "";
+            
+            Long ts = timestampCache.get(groupId);
+            timestamp = (ts != null) ? ts : 0L;
         }
-
-        String time = lastMsg != null ? formatTime(lastMsg.getTimestamp()) : (existing != null ? existing.getTime() : "");
-        long timestamp = lastMsg != null ? lastMsg.getTimestamp() : (existing != null ? existing.getTimestamp() : 0);
 
         ChatItemEntity entity = new ChatItemEntity(groupId, name, displayMsgText, time, photoUrl, false, timestamp, 0, type, true);
         AppDatabase.databaseWriteExecutor.execute(() -> chatItemDao.insert(entity));
@@ -314,9 +369,9 @@ public class TransformViewModel extends AndroidViewModel {
     private synchronized void updateChatItem(String friendUid, User user, Message lastMsg, int unreadCount, boolean isGroup) {
         if (!observedFriends.contains(friendUid)) return;
         
-        ChatItem existing = chatsMap.get(friendUid);
         String myUid = FirebaseAuth.getInstance().getUid();
         
+        // 1. Update Name and Online Status
         String name = null;
         if (user != null) {
             name = user.getDisplayName();
@@ -334,40 +389,77 @@ public class TransformViewModel extends AndroidViewModel {
         String photoUrl = user != null ? user.getPhotoUrl() : photoCache.get(friendUid);
         if (user != null && user.getPhotoUrl() != null) photoCache.put(friendUid, user.getPhotoUrl());
         
-        boolean online = user != null ? user.isOnline() : (existing != null && existing.isOnline());
+        boolean online;
+        if (user != null) {
+            online = user.isOnline();
+            onlineCache.put(friendUid, online);
+        } else {
+            Boolean o = onlineCache.get(friendUid);
+            online = (o != null) ? o : false;
+        }
         
-        String rawMsgText;
+        // 2. Update Message
+        String displayMsgText;
         String type;
+        String time;
+        long timestamp;
+
         if (lastMsg != null) {
             type = lastMsg.getType();
             if (type == null) type = "text";
+            
             boolean isSender = myUid != null && myUid.equals(lastMsg.getSenderId());
-            rawMsgText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(lastMsg.getText(), getApplication(), isSender);
+            String msgText = lastMsg.getText();
+            if (msgText == null) msgText = "";
+
+            if ("text".equals(type)) {
+                msgText = com.hamraj37.somechat.utils.EncryptionManager.decrypt(msgText, getApplication(), isSender);
+            } else if ("image".equals(type)) {
+                msgText = "Photo";
+            } else if ("voice".equals(type)) {
+                msgText = "Voice message";
+            }
+
+            if (isSender) {
+                displayMsgText = "You: " + msgText;
+            } else {
+                displayMsgText = msgText;
+            }
+            
+            time = formatTime(lastMsg.getTimestamp());
+            timestamp = lastMsg.getTimestamp();
+
+            // Update Caches
+            messageCache.put(friendUid, displayMsgText);
+            typeCache.put(friendUid, type);
+            timeCache.put(friendUid, time);
+            timestampCache.put(friendUid, timestamp);
         } else {
-            rawMsgText = existing != null ? getRawMessage(existing.getLastMessage()) : "No messages yet";
-            type = existing != null ? existing.getLastMessageType() : "text";
+            // Metadata update: check cache
+            displayMsgText = messageCache.getOrDefault(friendUid, "No messages yet");
+            if (displayMsgText == null) displayMsgText = "No messages yet";
+            
+            type = typeCache.getOrDefault(friendUid, "text");
+            if (type == null) type = "text";
+            
+            time = timeCache.getOrDefault(friendUid, "");
+            if (time == null) time = "";
+            
+            Long ts = timestampCache.get(friendUid);
+            timestamp = (ts != null) ? ts : 0L;
         }
         
-        String displayMsgText = rawMsgText;
-        if (lastMsg != null && myUid != null && myUid.equals(lastMsg.getSenderId())) {
-            displayMsgText = "You: " + rawMsgText;
-        } else if (lastMsg == null && existing != null && existing.getLastMessage().startsWith("You: ")) {
-            displayMsgText = existing.getLastMessage();
+        int finalUnreadCount;
+        if (unreadCount != -1) {
+            finalUnreadCount = unreadCount;
+            unreadCache.put(friendUid, finalUnreadCount);
+        } else {
+            Integer u = unreadCache.get(friendUid);
+            finalUnreadCount = (u != null) ? u : 0;
         }
-
-        String time = lastMsg != null ? formatTime(lastMsg.getTimestamp()) : (existing != null ? existing.getTime() : "");
-        long timestamp = lastMsg != null ? lastMsg.getTimestamp() : (existing != null ? existing.getTimestamp() : 0);
-        int finalUnreadCount = unreadCount != -1 ? unreadCount : (existing != null ? existing.getUnreadCount() : 0);
 
         ChatItemEntity entity = new ChatItemEntity(friendUid, name, displayMsgText, time, photoUrl, online, timestamp, finalUnreadCount, type, isGroup);
         AppDatabase.databaseWriteExecutor.execute(() -> chatItemDao.insert(entity));
-    }
-
-    private String getRawMessage(String displayMsg) {
-        if (displayMsg != null && displayMsg.startsWith("You: ")) {
-            return displayMsg.substring(5);
-        }
-        return displayMsg;
     }
 
     private String formatTime(long timestamp) {

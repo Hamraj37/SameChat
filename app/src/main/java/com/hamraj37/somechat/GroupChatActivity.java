@@ -787,7 +787,7 @@ public class GroupChatActivity extends BaseActivity {
 
     private void setupRecyclerView() {
         chatRecycler = findViewById(R.id.chat_recycler);
-        adapter = new MessageAdapter(messageList, new MessageAdapter.OnMessageClickListener() {
+        adapter = new MessageAdapter(messageList, true, new MessageAdapter.OnMessageClickListener() {
             @Override
             public void onReplyClick(String messageId) {
                 for (int i = 0; i < messageList.size(); i++) {

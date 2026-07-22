@@ -150,7 +150,7 @@ public class TransformFragment extends Fragment {
                         String name = snapshot.getValue(String.class);
                         if (name == null) name = "A member";
 
-                        DatabaseReference chatRef = FirebaseDatabase.getInstance().getReference("group_chats").child(groupId).child("messages");
+                        DatabaseReference chatRef = FirebaseDatabase.getInstance().getReference("groups").child(groupId).child("messages");
                         String messageId = chatRef.push().getKey();
                         if (messageId != null) {
                             Message msg = new Message();
@@ -252,11 +252,12 @@ public class TransformFragment extends Fragment {
 
                 @Override
                 public boolean areContentsTheSame(@NonNull ChatItem oldItem, @NonNull ChatItem newItem) {
-                    return oldItem.getLastMessage().equals(newItem.getLastMessage()) &&
-                           oldItem.getTime().equals(newItem.getTime()) &&
+                    return java.util.Objects.equals(oldItem.getLastMessage(), newItem.getLastMessage()) &&
+                           java.util.Objects.equals(oldItem.getTime(), newItem.getTime()) &&
                            oldItem.isOnline() == newItem.isOnline() &&
                            oldItem.getTimestamp() == newItem.getTimestamp() &&
-                           oldItem.getUnreadCount() == newItem.getUnreadCount();
+                           oldItem.getUnreadCount() == newItem.getUnreadCount() &&
+                           java.util.Objects.equals(oldItem.getLastMessageType(), newItem.getLastMessageType());
                 }
             });
         }
@@ -275,7 +276,11 @@ public class TransformFragment extends Fragment {
             
             // Set last message with icon if needed
             if (holder.textViewLastMessage != null) {
-                holder.textViewLastMessage.setText(chatItem.getLastMessage());
+                String lastMsg = chatItem.getLastMessage();
+                holder.textViewLastMessage.setText(lastMsg != null ? lastMsg : "");
+                holder.textViewLastMessage.setVisibility(View.VISIBLE);
+                holder.textViewLastMessage.setAlpha(1.0f);
+
                 String type = chatItem.getLastMessageType();
                 int iconRes = 0;
                 if ("image".equals(type)) {
@@ -284,6 +289,8 @@ public class TransformFragment extends Fragment {
                     iconRes = android.R.drawable.ic_media_play;
                 } else if ("voice".equals(type)) {
                     iconRes = android.R.drawable.ic_btn_speak_now;
+                } else if ("file".equals(type)) {
+                    iconRes = android.R.drawable.ic_menu_save;
                 }
 
                 if (iconRes != 0) {
