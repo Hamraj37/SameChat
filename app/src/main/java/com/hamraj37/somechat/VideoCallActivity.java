@@ -90,7 +90,6 @@ public class VideoCallActivity extends BaseActivity {
     private View screenLightOverlay;
     private boolean isUiVisible = true;
     private int statusBarHeight = 0;
-    private Ringtone ringtone;
     private boolean isLogged = false;
 
     @Override
@@ -127,9 +126,6 @@ public class VideoCallActivity extends BaseActivity {
 
         checkPermissionsAndInit();
         setupAudioRouting();
-        if (isIncoming && !isConnected) {
-            startRingtone();
-        }
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.video_call_root), (v, insets) -> {
             statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top;
@@ -515,7 +511,7 @@ public class VideoCallActivity extends BaseActivity {
 
                 String status = snapshot.child("status").getValue(String.class);
                 if ("accepted".equals(status)) {
-                    stopRingtone();
+                    cancelCallNotification();
                     isConnected = true;
                     CallState.isCallActive = true;
                     CallState.activeCallId = receiverId;
@@ -607,27 +603,15 @@ public class VideoCallActivity extends BaseActivity {
         callRef.addValueEventListener(callListener);
     }
 
-    private void startRingtone() {
-        try {
-            Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-            ringtone = RingtoneManager.getRingtone(getApplicationContext(), notification);
-            if (ringtone != null) {
-                ringtone.setLooping(true);
-                ringtone.play();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void stopRingtone() {
-        if (ringtone != null && ringtone.isPlaying()) {
-            ringtone.stop();
+    private void cancelCallNotification() {
+        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null && receiverId != null) {
+            nm.cancel(Math.abs(receiverId.hashCode()));
         }
     }
 
     private void acceptCall() {
-        stopRingtone();
+        cancelCallNotification();
         callRef.child("status").setValue("accepted");
         startTimer();
         
@@ -651,7 +635,7 @@ public class VideoCallActivity extends BaseActivity {
         endIntent.setPackage(getPackageName());
         sendBroadcast(endIntent);
 
-        stopRingtone();
+        cancelCallNotification();
         stopTimer();
         AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
@@ -680,7 +664,7 @@ public class VideoCallActivity extends BaseActivity {
 
     @Override
     protected void onDestroy() {
-        stopRingtone();
+        cancelCallNotification();
         if (isFlashOn) {
             toggleFlash(); // Ensure flash is off and brightness restored
         }

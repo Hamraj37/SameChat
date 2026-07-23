@@ -69,7 +69,6 @@ public class AudioCallActivity extends BaseActivity {
     private boolean isSpeakerOn = false;
     private boolean isConnected = false;
     private boolean isRemoteDescriptionSet = false;
-    private Ringtone ringtone;
     private PowerManager.WakeLock proximityWakeLock;
     private boolean isLogged = false;
 
@@ -112,9 +111,6 @@ public class AudioCallActivity extends BaseActivity {
         checkPermissionsAndInit();
         setupAudioRouting();
         setupProximitySensor();
-        if (isIncoming && !isConnected) {
-            startRingtone();
-        }
     }
 
     private void setupProximitySensor() {
@@ -323,7 +319,7 @@ public class AudioCallActivity extends BaseActivity {
 
                 String status = snapshot.child("status").getValue(String.class);
                 if ("accepted".equals(status)) {
-                    stopRingtone();
+                    cancelCallNotification();
                     isConnected = true;
                     CallState.isCallActive = true;
                     CallState.activeCallId = receiverId;
@@ -416,27 +412,15 @@ public class AudioCallActivity extends BaseActivity {
         callRef.addValueEventListener(callListener);
     }
 
-    private void startRingtone() {
-        try {
-            Uri notification = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE);
-            ringtone = RingtoneManager.getRingtone(getApplicationContext(), notification);
-            if (ringtone != null) {
-                ringtone.setLooping(true);
-                ringtone.play();
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void stopRingtone() {
-        if (ringtone != null && ringtone.isPlaying()) {
-            ringtone.stop();
+    private void cancelCallNotification() {
+        android.app.NotificationManager nm = (android.app.NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+        if (nm != null && receiverId != null) {
+            nm.cancel(Math.abs(receiverId.hashCode()));
         }
     }
 
     private void acceptCall() {
-        stopRingtone();
+        cancelCallNotification();
         updateProximitySensor(true);
         callRef.child("status").setValue("accepted");
         startTimer();
@@ -461,7 +445,7 @@ public class AudioCallActivity extends BaseActivity {
         endIntent.setPackage(getPackageName());
         sendBroadcast(endIntent);
 
-        stopRingtone();
+        cancelCallNotification();
         stopTimer();
         AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
         if (audioManager != null) {
@@ -492,7 +476,7 @@ public class AudioCallActivity extends BaseActivity {
     protected void onDestroy() {
         if (!CallState.isCallActive) {
             updateProximitySensor(false);
-            stopRingtone();
+            cancelCallNotification();
             stopTimer();
             AudioManager audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
             if (audioManager != null) {
